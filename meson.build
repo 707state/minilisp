@@ -13,6 +13,7 @@ exe = executable(
   'minilisp',
   'minilisp.c',
   dependencies : dependencies,
+  c_args: ['-pedantic-errors','-Werror','-Wall','-std=c11','-Wno-error=unused-parameter'],
   install : true,
 )
 

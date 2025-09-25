@@ -90,10 +90,10 @@ typedef struct Obj {
 } Obj;
 
 // Constants
-static Obj *True = &(Obj){ TTRUE };
-static Obj *Nil = &(Obj){ TNIL };
-static Obj *Dot = &(Obj){ TDOT };
-static Obj *Cparen = &(Obj){ TCPAREN };
+static Obj *True = &(Obj){ TTRUE,.size=0 };
+static Obj *Nil = &(Obj){ TNIL,.size=0 };
+static Obj *Dot = &(Obj){ TDOT ,.size=0};
+static Obj *Cparen = &(Obj){ TCPAREN,.size=0 };
 
 // The list containing all symbols. Such data structure is traditionally called the "obarray", but I
 // avoid using it as a variable name as this is not an array but a list.
@@ -107,7 +107,7 @@ static Obj *Symbols;
 #define MEMORY_SIZE 65536
 
 // The pointer pointing to the beginning of the current heap
-static void *memory;
+static char *memory;
 
 // The pointer pointing to the beginning of the old heap
 static void *from_space;
@@ -211,7 +211,7 @@ static Obj *alloc(void *root, int type, size_t size) {
         error("Memory exhausted");
 
     // Allocate the object.
-    Obj *obj = memory + mem_nused;
+    Obj *obj = (void*)(memory + mem_nused);
     obj->type = type;
     obj->size = size;
     mem_nused += size;
@@ -256,7 +256,7 @@ static inline Obj *forward(Obj *obj) {
     return newloc;
 }
 
-static void *alloc_semispace() {
+static void *alloc_semispace(void) {
     return mmap(NULL, MEMORY_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
 }
 
@@ -280,7 +280,7 @@ static void gc(void *root) {
     memory = alloc_semispace();
 
     // Initialize the two pointers for GC. Initially they point to the beginning of the to-space.
-    scan1 = scan2 = memory;
+    scan1 = scan2 = (void*)memory;
 
     // Copy the GC root objects first. This moves the pointer scan2.
     forward_root_objects(root);
