@@ -10,7 +10,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
-
+static int gcd(int a, int b) {
+  while (b != 0) {
+    a %= b;
+    a ^= b;
+    b ^= a;
+    a ^= b;
+  }
+  return a;
+}
+// static int lcm(int a, int b) { return a / gcd(a, b) * b; }
 static __attribute((noreturn)) void error(char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
@@ -95,6 +104,7 @@ typedef struct Obj {
 } Obj;
 
 // Constants
+// 这里利用了C的Compound Literal是一个左值的特性，这在C++中属于Extension
 static Obj *True = &(Obj){TTRUE, .size = 0};
 static Obj *Nil = &(Obj){TNIL, .size = 0};
 static Obj *Dot = &(Obj){TDOT, .size = 0};
@@ -820,7 +830,41 @@ static Obj *prim_minus(void *root, Obj **env, Obj **list) {
     r -= p->car->value;
   return make_int(root, r);
 }
-
+static Obj *prim_multiply(void *root, Obj **env, Obj **list) {
+  Obj *args = eval_list(root, env, list);
+  int multi = 1;
+  for (Obj *p = args; p != Nil; p = p->cdr) {
+    if (p->car->type != TINT)
+      error("- takes only numbers");
+    multi *= p->car->value;
+  }
+  return make_int(root, multi);
+}
+static Obj *prim_divide(void *root, Obj **env, Obj **list) {
+  Obj *args = eval_list(root, env, list);
+  Obj *numerator_obj = args;
+  if (numerator_obj->car->type != TINT) {
+    error("/ takes only numbers");
+  }
+  int numerator = numerator_obj->car->value;
+  Obj *dominator_obj = numerator_obj->cdr;
+  int dominator = 1;
+  for (; dominator_obj != Nil; dominator_obj = dominator_obj->cdr) {
+    if (dominator_obj->car->type != TINT) {
+      error("/ takes only numbers");
+    }
+    dominator *= dominator_obj->car->value;
+    if (dominator == 0) {
+      error("/ can't have 0 as dominator!");
+    }
+    int gcd_val = gcd(numerator, dominator);
+    numerator /= gcd_val;
+    dominator /= gcd_val;
+  }
+  // TODO:
+  // 这里需要考虑是否可以用double/float来替代int，或者创建一个独立的分数类型
+  return make_int(root, numerator / dominator);
+}
 // (< <integer> <integer>)
 static Obj *prim_lt(void *root, Obj **env, Obj **list) {
   Obj *args = eval_list(root, env, list);
@@ -964,6 +1008,8 @@ static void define_primitives(void *root, Obj **env) {
   add_primitive(root, env, "gensym", prim_gensym);
   add_primitive(root, env, "+", prim_plus);
   add_primitive(root, env, "-", prim_minus);
+  add_primitive(root, env, "*", prim_multiply);
+  add_primitive(root, env, "/", prim_divide);
   add_primitive(root, env, "<", prim_lt);
   add_primitive(root, env, "define", prim_define);
   add_primitive(root, env, "defun", prim_defun);
