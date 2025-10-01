@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <ctype.h>
+#include <math.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -10,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+
 static int gcd(int a, int b) {
   while (b != 0) {
     a %= b;
@@ -37,6 +39,7 @@ static __attribute((noreturn)) void error(char *fmt, ...) {
 enum {
   // Regular objects visible from the user
   TINT = 1,
+  TRATIONAL,
   TCELL,
   TSYMBOL,
   TPRIMITIVE,
@@ -77,6 +80,11 @@ typedef struct Obj {
   union {
     // Int
     int value;
+    // Numerator
+    struct {
+      int numerator;
+      int denominator;
+    };
     // Cell
     struct {
       struct Obj *car;
@@ -319,6 +327,7 @@ static void gc(void *root) {
     switch (scan1->type) {
     case TINT:
     case TSYMBOL:
+    case TRATIONAL:
     case TPRIMITIVE:
       // Any of the above types does not contain a pointer to a GC-managed
       // object.
@@ -357,17 +366,25 @@ static void gc(void *root) {
 // Constructors
 //======================================================================
 
+static Obj *cons(void *root, Obj **car, Obj **cdr) {
+  Obj *cell = alloc(root, TCELL, sizeof(Obj *) * 2);
+  cell->car = *car;
+  cell->cdr = *cdr;
+  return cell;
+}
+
 static Obj *make_int(void *root, int value) {
   Obj *r = alloc(root, TINT, sizeof(int));
   r->value = value;
   return r;
 }
 
-static Obj *cons(void *root, Obj **car, Obj **cdr) {
-  Obj *cell = alloc(root, TCELL, sizeof(Obj *) * 2);
-  cell->car = *car;
-  cell->cdr = *cdr;
-  return cell;
+// TODO: 检查逻辑
+static Obj *make_rational(void *root, int numerator, int denominator) {
+  Obj *r = alloc(root, TRATIONAL, sizeof(int) * 2);
+  r->numerator = numerator;
+  r->denominator = denominator;
+  return r;
 }
 
 static Obj *make_symbol(void *root, char *name) {
@@ -513,6 +530,8 @@ static Obj *read_symbol(void *root, char c) {
   return intern(root, buf);
 }
 
+// TODO: 这里暂时不考虑输入值是Rational Number的情况，只考虑(/ 1
+// 2)这样的操作会产生Rational Number
 static Obj *read_expr(void *root) {
   for (;;) {
     int c = getchar();
@@ -568,6 +587,7 @@ static void print(Obj *obj) {
     return
     CASE(TINT, "%d", obj->value);
     CASE(TSYMBOL, "%s", obj->name);
+    CASE(TRATIONAL, "%d/%d", obj->numerator, obj->denominator);
     CASE(TPRIMITIVE, "<primitive>");
     CASE(TFUNCTION, "<function>");
     CASE(TMACRO, "<macro>");
@@ -697,6 +717,7 @@ static Obj *eval(void *root, Obj **env, Obj **obj) {
   case TPRIMITIVE:
   case TFUNCTION:
   case TTRUE:
+  case TRATIONAL:
   case TNIL:
     // Self-evaluating objects
     return *obj;
@@ -806,75 +827,174 @@ static Obj *prim_gensym(void *root, Obj **env, Obj **list) {
   return make_symbol(root, buf);
 }
 
-// (+ <integer> ...)
+// (+ int/rat ...)
 static Obj *prim_plus(void *root, Obj **env, Obj **list) {
   int sum = 0;
+  int numerator = 0;
+  int denominator = 1;
   for (Obj *args = eval_list(root, env, list); args != Nil; args = args->cdr) {
-    if (args->car->type != TINT)
-      error("+ takes only numbers");
-    sum += args->car->value;
+    if (args->car->type != TINT && args->car->type != TRATIONAL) {
+      error("+ takes only INT or RATIONAL");
+    }
+    if (args->car->type == TINT) {
+      sum += args->car->value;
+    } else {
+      int temp_denominator = denominator * args->car->denominator;
+      int temp_numerator = numerator * args->car->denominator +
+                           args->car->numerator * denominator;
+      int temp_gcd = gcd(temp_numerator, temp_denominator);
+      numerator = temp_numerator / temp_gcd;
+      denominator = temp_denominator / temp_gcd;
+    }
   }
-  return make_int(root, sum);
+  numerator += sum * denominator;
+  if(numerator%denominator==0) return make_int(root, numerator/denominator);
+  else return make_rational(root, numerator, denominator);
 }
 
-// (- <integer> ...)
+// (- int/rat ...)
 static Obj *prim_minus(void *root, Obj **env, Obj **list) {
   Obj *args = eval_list(root, env, list);
-  for (Obj *p = args; p != Nil; p = p->cdr)
-    if (p->car->type != TINT)
-      error("- takes only numbers");
-  if (args->cdr == Nil)
-    return make_int(root, -args->car->value);
-  int r = args->car->value;
-  for (Obj *p = args->cdr; p != Nil; p = p->cdr)
-    r -= p->car->value;
-  return make_int(root, r);
+  for (Obj *p = args; p != Nil; p = p->cdr) {
+    if (p->car->type != TINT && p->car->type != TRATIONAL) {
+      error("- takes only INT or RATIONAL");
+    }
+  }
+  if (args->cdr == Nil) {
+    if (args->car->type == TINT)
+      return make_int(root, -args->car->value);
+    else
+      return make_rational(root, -args->car->numerator, args->car->denominator);
+  }
+  int r = 0;
+  int numerator = 0;
+  int denominator = 1;
+  if (args->car->type == TINT) {
+    r = args->car->value;
+  } else {
+    numerator = args->car->numerator;
+    denominator = args->car->denominator;
+  }
+  for (Obj *p = args->cdr; p != Nil; p = p->cdr) {
+    if (p->car->type == TINT) {
+      r -= p->car->value;
+    } else {
+      int temp_numerator =
+          numerator * p->car->denominator - denominator * p->car->numerator;
+      int temp_denominator = denominator * p->car->denominator;
+      int temp_gcd = gcd(temp_numerator, temp_denominator);
+      numerator = temp_numerator / temp_gcd;
+      denominator = temp_denominator / temp_gcd;
+    }
+  }
+  // TODO: 这里需要检查一下逻辑
+  if(numerator==0) return make_int(root, r);
+  else{
+  numerator += denominator * r;
+return make_rational(root, numerator, denominator);
 }
+}
+
+// (* int/rat ...)
 static Obj *prim_multiply(void *root, Obj **env, Obj **list) {
   Obj *args = eval_list(root, env, list);
   int multi = 1;
+  int numerator = 1;
+  int denominator = 1;
   for (Obj *p = args; p != Nil; p = p->cdr) {
-    if (p->car->type != TINT)
-      error("- takes only numbers");
-    multi *= p->car->value;
+    if (p->car->type != TINT && p->car->type != TRATIONAL) {
+      error("- takes only INT or RATIONAL");
+    }
+    if (p->car->type == TINT) {
+      multi *= p->car->value;
+    } else {
+      int temp_numerator = numerator * p->car->numerator;
+      int temp_denominator = denominator * p->car->denominator;
+      int temp_gcd = gcd(temp_numerator, temp_denominator);
+      numerator = temp_numerator / temp_gcd;
+      denominator = temp_denominator / temp_gcd;
+    }
   }
-  return make_int(root, multi);
+  int temp_gcd = gcd(multi, denominator);
+  multi /= temp_gcd;
+  denominator /= temp_gcd;
+  numerator*=multi;
+  if(numerator%denominator==0) return make_int(root, numerator/denominator);
+  else return make_rational(root, numerator, denominator);
 }
+
+// TODO: 这里需要检查一下Rational的逻辑
+//  (/ int/rat ...)
 static Obj *prim_divide(void *root, Obj **env, Obj **list) {
   Obj *args = eval_list(root, env, list);
   Obj *numerator_obj = args;
-  if (numerator_obj->car->type != TINT) {
-    error("/ takes only numbers");
+  if (numerator_obj->car->type != TINT &&
+      numerator_obj->car->type != TRATIONAL) {
+    error("/ takes only INT or RATIONAL");
   }
-  int numerator = numerator_obj->car->value;
-  Obj *dominator_obj = numerator_obj->cdr;
-  int dominator = 1;
-  for (; dominator_obj != Nil; dominator_obj = dominator_obj->cdr) {
-    if (dominator_obj->car->type != TINT) {
-      error("/ takes only numbers");
+  Obj *denominator_obj = numerator_obj->cdr;
+  int numerator = 1;
+  int denominator = 1;
+  if (numerator_obj->car->type == TINT) {
+    numerator = numerator_obj->car->value;
+  } else {
+    numerator = numerator_obj->car->numerator;
+    denominator = numerator_obj->car->denominator;
+  }
+  for (; denominator_obj != Nil; denominator_obj = denominator_obj->cdr) {
+    if (denominator_obj->car->type != TINT &&
+        denominator_obj->car->type != TRATIONAL) {
+      error("/ takes only INT or RATIONAL");
     }
-    dominator *= dominator_obj->car->value;
-    if (dominator == 0) {
+    if (denominator_obj->car->type == TINT) {
+      denominator *= denominator_obj->car->value;
+    } else {
+      int temp_numerator = numerator * denominator_obj->car->denominator;
+      int temp_denominator = denominator * denominator_obj->car->numerator;
+      int temp_gcd = gcd(temp_denominator, temp_numerator);
+      numerator = temp_numerator / temp_gcd;
+      denominator = temp_denominator / temp_gcd;
+    }
+    if (denominator == 0) {
       error("/ can't have 0 as dominator!");
     }
-    int gcd_val = gcd(numerator, dominator);
+    int gcd_val = gcd(numerator, denominator);
     numerator /= gcd_val;
-    dominator /= gcd_val;
+    denominator /= gcd_val;
   }
-  // TODO:
-  // 这里需要考虑是否可以用double/float来替代int，或者创建一个独立的分数类型
-  return make_int(root, numerator / dominator);
+  if (numerator % denominator == 0) {
+    return make_int(root, numerator / denominator);
+  } else {
+    return make_rational(root, numerator, denominator);
+  }
 }
-// (< <integer> <integer>)
+// (< int/rat int/rat)
 static Obj *prim_lt(void *root, Obj **env, Obj **list) {
   Obj *args = eval_list(root, env, list);
   if (length(args) != 2)
     error("malformed <");
   Obj *x = args->car;
   Obj *y = args->cdr->car;
-  if (x->type != TINT || y->type != TINT)
+  if ((x->type != TINT && x->type != TRATIONAL) ||
+      (y->type != TINT && y->type != TRATIONAL))
     error("< takes only numbers");
-  return x->value < y->value ? True : Nil;
+  int x_numerator = 0, y_numerator = 0, x_denominator = 1, y_denominator = 1;
+  if (x->type == TINT) {
+    x_numerator = x->value;
+  } else {
+    x_numerator = x->numerator;
+    x_denominator = x->denominator;
+  }
+  if (y->type == TINT) {
+    y_numerator = y->value;
+  } else {
+    y_numerator = y->numerator;
+    y_denominator = y->denominator;
+  }
+  return x_numerator * y_denominator < x_denominator * y_numerator ? True : Nil;
+}
+static Obj *prim_gt(void *root, Obj **env, Obj **list) {
+  return prim_lt(root, env, list) == True ? Nil : True;
 }
 
 static Obj *handle_function(void *root, Obj **env, Obj **list, int type) {
@@ -964,16 +1084,31 @@ static Obj *prim_if(void *root, Obj **env, Obj **list) {
   return *els == Nil ? Nil : progn(root, env, els);
 }
 
-// (= <integer> <integer>)
+// (= int/rat int/rat)
 static Obj *prim_num_eq(void *root, Obj **env, Obj **list) {
   if (length(*list) != 2)
     error("Malformed =");
   Obj *values = eval_list(root, env, list);
   Obj *x = values->car;
   Obj *y = values->cdr->car;
-  if (x->type != TINT || y->type != TINT)
+  if ((x->type != TINT && x->type != TRATIONAL) ||
+      (y->type != TINT && y->type == TRATIONAL))
     error("= only takes numbers");
-  return x->value == y->value ? True : Nil;
+  int x_numerator = 0, y_numerator = 0, x_denominator = 1, y_denominator = 1;
+  if (x->type == TINT) {
+    x_numerator = x->value;
+  } else {
+    x_numerator = x->numerator;
+    x_denominator = x->denominator;
+  }
+  if (y->type == TINT) {
+    y_numerator = y->value;
+  } else {
+    y_numerator = y->numerator;
+    y_denominator = y->denominator;
+  }
+  return x_numerator * y_denominator == y_numerator * x_denominator ? True
+                                                                    : Nil;
 }
 
 // (eq expr expr)
@@ -1011,6 +1146,7 @@ static void define_primitives(void *root, Obj **env) {
   add_primitive(root, env, "*", prim_multiply);
   add_primitive(root, env, "/", prim_divide);
   add_primitive(root, env, "<", prim_lt);
+  add_primitive(root, env, ">", prim_gt);
   add_primitive(root, env, "define", prim_define);
   add_primitive(root, env, "defun", prim_defun);
   add_primitive(root, env, "defmacro", prim_defmacro);

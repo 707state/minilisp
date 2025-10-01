@@ -145,3 +145,7 @@ run macroexpand '(if (= x 0) (print x))' "
 
 # Sum from 0 to 10
 run recursion 55 '(defun f (x) (if (= x 0) 0 (+ (f (+ x -1)) x))) (f 10)'
+
+# rational number!
+run rational 1/4 '(/ 1 4)'
+run rational_add 3/2 '(+ 1 (/ 1 2))'
