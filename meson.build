@@ -7,6 +7,7 @@ project(
 )
 
 dependencies = [
+  dependency('libffi')
 ]
 
 exe = executable(
