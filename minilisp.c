@@ -431,11 +431,13 @@ static Obj *acons(void *root, Obj **x, Obj **y, Obj **a) {
 #define SYMBOL_MAX_LEN 200
 const char symbol_chars[] = "~!@#$%^&*-_=+:/?<>";
 
-static Obj *read_expr(void *root);
+static Obj *read_expr(void *root, FILE* in);
 
-static int peek(void) {
-  int c = getchar();
-  ungetc(c, stdin);
+static int peek(FILE *in) {
+  int c = fgetc(in);
+  if(c!=EOF){
+  	ungetc(c,in);
+  }
   return c;
 }
 
@@ -452,32 +454,32 @@ static Obj *reverse(Obj *p) {
 }
 
 // Skips the input until newline is found. Newline is one of \r, \r\n or \n.
-static void skip_line(void) {
+static void skip_line(FILE *in) {
   for (;;) {
-    int c = getchar();
+    int c = fgetc(in);
     if (c == EOF || c == '\n')
       return;
     if (c == '\r') {
-      if (peek() == '\n')
-        getchar();
+      if (peek(in) == '\n')
+	      fgetc(in);
       return;
     }
   }
 }
 
 // Reads a list. Note that '(' has already been read.
-static Obj *read_list(void *root) {
+static Obj *read_list(void *root, FILE *in) {
   DEFINE3(obj, head, last);
   *head = Nil;
   for (;;) {
-    *obj = read_expr(root);
+    *obj = read_expr(root, in);
     if (!*obj)
       error("Unclosed parenthesis");
     if (*obj == Cparen)
       return reverse(*head);
     if (*obj == Dot) {
-      *last = read_expr(root);
-      if (read_expr(root) != Cparen)
+      *last = read_expr(root,in);
+      if (read_expr(root,in) != Cparen)
         error("Closed parenthesis expected after dot");
       Obj *ret = reverse(*head);
       (*head)->cdr = *last;
@@ -501,29 +503,29 @@ static Obj *intern(void *root, char *name) {
 
 // Reader marcro ' (single quote). It reads an expression and returns (quote
 // <expr>).
-static Obj *read_quote(void *root) {
+static Obj *read_quote(void *root, FILE *in) {
   DEFINE2(sym, tmp);
   *sym = intern(root, "quote");
-  *tmp = read_expr(root);
+  *tmp = read_expr(root,in);
   *tmp = cons(root, tmp, &Nil);
   *tmp = cons(root, sym, tmp);
   return *tmp;
 }
 
-static int read_number(int val) {
-  while (isdigit(peek()))
-    val = val * 10 + (getchar() - '0');
+static int read_number(int val, FILE *in) {
+  while (isdigit(peek(in)))
+    val = val * 10 + (fgetc(in) - '0');
   return val;
 }
 
-static Obj *read_symbol(void *root, char c) {
+static Obj *read_symbol(void *root, char c, FILE *in) {
   char buf[SYMBOL_MAX_LEN + 1];
   buf[0] = c;
   int len = 1;
-  while (isalnum(peek()) || strchr(symbol_chars, peek())) {
+  while (isalnum(peek(in)) || strchr(symbol_chars, peek(in))) {
     if (SYMBOL_MAX_LEN <= len)
       error("Symbol name too long");
-    buf[len++] = getchar();
+    buf[len++] = fgetc(in);
   }
   buf[len] = '\0';
   return intern(root, buf);
@@ -531,31 +533,31 @@ static Obj *read_symbol(void *root, char c) {
 
 // TODO: 这里暂时不考虑输入值是Rational Number的情况，只考虑(/ 1
 // 2)这样的操作会产生Rational Number
-static Obj *read_expr(void *root) {
+static Obj *read_expr(void *root, FILE *in) {
   for (;;) {
-    int c = getchar();
+    int c = fgetc(in);
     if (c == ' ' || c == '\n' || c == '\r' || c == '\t')
       continue;
     if (c == EOF)
       return NULL;
     if (c == ';') {
-      skip_line();
+      skip_line(in);
       continue;
     }
     if (c == '(')
-      return read_list(root);
+      return read_list(root,in);
     if (c == ')')
       return Cparen;
     if (c == '.')
       return Dot;
     if (c == '\'')
-      return read_quote(root);
+      return read_quote(root, in);
     if (isdigit(c))
-      return make_int(root, read_number(c - '0'));
-    if (c == '-' && isdigit(peek()))
-      return make_int(root, -read_number(0));
+      return make_int(root, read_number(c - '0', in));
+    if (c == '-' && isdigit(peek(in)))
+      return make_int(root, -read_number(0,in));
     if (isalpha(c) || strchr(symbol_chars, c))
-      return read_symbol(root, c);
+      return read_symbol(root, c,in);
     error("Don't know how to handle %c", c);
   }
 }
@@ -1182,10 +1184,17 @@ int main(int argc, char **argv) {
   *env = make_env(root, &Nil, &Nil);
   define_constants(root, env);
   define_primitives(root, env);
-
+  FILE *in=stdin;
+  if(argc>1){
+    in=fopen(argv[1],"r");
+    if(!in){
+      perror("fopen");
+      return 1;
+    }
+  }
   // The main loop
   for (;;) {
-    *expr = read_expr(root);
+    *expr = read_expr(root,in);
     if (!*expr)
       return 0;
     if (*expr == Cparen)
@@ -1194,5 +1203,8 @@ int main(int argc, char **argv) {
       error("Stray dot");
     print(eval(root, env, expr));
     printf("\n");
+  }
+  if(in!=stdin){
+    fclose(in);
   }
 }
