@@ -5,19 +5,44 @@ project(
   version : '0.1',
   default_options : ['warning_level=3'],
 )
-
-dependencies = [
+asm_codegen_library_src=[
+    'asm_codegen.cc'
 ]
 
-exe = executable(
-  'learn_assembly',
-  'learn_assembly.c',
-  dependencies : dependencies,
-  install : true,
+asm_codegen_lib = declare_dependency(
+    include_directories: include_directories('.'),
+    link_with: library('codegen',asm_codegen_library_src)
 )
+
 c_gen_asm=executable(
   'gen_asm',
   'gen_asm.cc',
-  dependencies: dependencies,
+  dependencies: asm_codegen_lib,
   install: true
+)
+
+
+# minilisp interpreter
+
+executable(
+    'minilisp',
+    'minilisp.c'
+)
+
+# test
+
+
+doctest_lib=subproject('doctest')
+doctest_lib_dep=doctest_lib.get_variable('doctest_dep')
+
+
+test_src=[
+    'test/main.cc',
+    'test/test_function.cc'
+]
+
+executable('tests',
+    test_src,
+    include_directories: include_directories('.'),
+    dependencies: [doctest_lib_dep, asm_codegen_lib]
 )

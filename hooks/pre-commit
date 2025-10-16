@@ -1,0 +1,88 @@
+#!/bin/bash
+
+# Pre-commit hook: 格式化代码并自动重新添加到暂存区
+
+set -e  # 遇到错误立即退出
+
+echo "🔍 Running pre-commit formatting..."
+
+# 检查 clang-format 是否安装
+if ! command -v clang-format &> /dev/null; then
+    echo "❌ Error: clang-format is not installed"
+    echo "   Please install clang-format first"
+    exit 1
+fi
+
+# 检查 .clang-format 配置文件
+if [ ! -f ".clang-format" ]; then
+    echo "❌ Error: .clang-format file not found"
+    echo "   Please create .clang-format configuration file"
+    exit 1
+fi
+
+echo "🔧 Using clang-format: $(which clang-format)"
+echo "🔧 clang-format version: $(clang-format --version)"
+
+# 获取暂存区中的 C++ 文件
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(h|hpp|cc|cpp|c|cxx)$' || true)
+
+if [ -z "$STAGED_FILES" ]; then
+    echo "ℹ️  No C++ files staged for commit"
+    exit 0
+fi
+
+echo "📝 Found staged C++ files:"
+echo "$STAGED_FILES" | sed 's/^/   - /'
+
+# 格式化暂存的文件
+FORMATTED_COUNT=0
+TOTAL_COUNT=0
+
+echo ""
+echo "🔧 Formatting files..."
+
+for file in $STAGED_FILES; do
+    if [ -f "$file" ]; then
+        TOTAL_COUNT=$((TOTAL_COUNT + 1))
+        
+        # 保存当前文件内容的哈希
+        ORIGINAL_HASH=$(git hash-object "$file")
+        
+        # 格式化文件
+        clang-format -i "$file"
+        
+        # 检查文件是否被修改
+        NEW_HASH=$(git hash-object "$file")
+        
+        if [ "$ORIGINAL_HASH" != "$NEW_HASH" ]; then
+            echo "   ✅ Formatted: $file"
+            FORMATTED_COUNT=$((FORMATTED_COUNT + 1))
+            
+            # 重新添加格式化后的文件到暂存区
+            git add "$file"
+        else
+            echo "   ⏭️  Already formatted: $file"
+        fi
+    fi
+done
+
+echo ""
+echo "📊 Summary:"
+echo "   Total files processed: $TOTAL_COUNT"
+echo "   Files formatted: $FORMATTED_COUNT"
+
+if [ $FORMATTED_COUNT -gt 0 ]; then
+    echo ""
+    echo "✨ Code formatting completed!"
+    echo "   Formatted files have been automatically re-staged."
+    echo "   You can now proceed with the commit."
+else
+    echo ""
+    echo "✅ All files were already properly formatted!"
+fi
+
+echo ""
+echo "🚀 Pre-commit hook completed successfully!"
+
+exit 0
+
