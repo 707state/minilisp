@@ -25,3 +25,12 @@ const unsigned int kCharShift = 8;
 const unsigned int kBoolTag   = 0x1f;  // 0b0011111
 const unsigned int kBoolMask  = 0x80;  // 0b10000000
 const unsigned int kBoolShift = 7;
+
+// tag
+const unsigned int kPairTag = 0x1;
+const uword kHeapTagMask    = ((uword)0x7);
+const uword kHeapPtrMask    = ~kHeapTagMask;
+
+// symbol
+
+const unsigned int kSymbolTag = 0x5;

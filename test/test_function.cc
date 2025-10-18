@@ -40,3 +40,15 @@ TEST_CASE("Compile integer test")
   word return_val = generator.execute();
   CHECK_EQ(1, Object_decode_integer(return_val));
 }
+TEST_CASE("Test add1 function")
+{
+  ASMGenerator generator;
+  generator.gen_mov_imm_instruction(X0, 42);
+  generator.gen_add_imm_instruction(X0, X0, 1);
+  generator.gen_ret_instruction();
+  generator.init();
+  int result = generator.make_executable();
+  CHECK_EQ(result, 0);
+  word return_val = generator.execute();
+  CHECK_EQ(43, return_val);
+}

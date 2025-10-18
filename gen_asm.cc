@@ -17,9 +17,7 @@ int main()
   word return_code = generator.execute();
   assert(result == 0 && "mprotect failed");
   assert('a' == Object_decode_char(return_code) && "the assembly was wrong");
-
   result = generator.reclaim();
   assert(result == 0 && "munmap failed");
-
   return return_code;
 }

@@ -37,4 +37,5 @@ word Object_false() { return Object_encode_bool(false); }
 
 word Object_nil() { return 0x2f; }
 
+uword Object_address(void *obj) { return (uword)obj & kHeapPtrMask; }
 // End Objects

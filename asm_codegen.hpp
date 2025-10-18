@@ -54,10 +54,23 @@ class ASMGenerator {
   // compile-related function
   int compile_expr(ASTNode *node);
   int compile_function(ASTNode *node);
+  int compile_call(ASTNode *callable, ASTNode *args);
   // codegen
-  void gen_mov_instruction(RegisterX reg, uint16_t imm_value, uint8_t shift = 0,
-                           bool is_64 = true) noexcept;
+  void gen_mov_imm_instruction(RegisterX reg, uint16_t imm_value,
+                               uint8_t shift = 0, bool is_64 = true) noexcept;
   void gen_ret_instruction(RegisterX reg = X30) noexcept;
+  void gen_add_imm_instruction(RegisterX rn, RegisterX rd, uint16_t imm12,
+                               bool shift = 0, bool is_64 = true) noexcept;
+  void gen_sub_imm_instruction(RegisterX rn, RegisterX rd, uint16_t imm12,
+                               bool shift = 0, bool is_64 = true) noexcept;
+  void gen_lsl_imm_instruction(RegisterX rn, RegisterX rd, uint8_t immr,
+                               uint8_t imms, bool N = true,
+                               bool is_64 = true) noexcept;
+  void gen_lsr_imm_instruction(RegisterX rn, RegisterX rd, uint8_t immr,
+                               bool N = true, bool is_64 = true) noexcept;
+  void gen_orr_imm_instruction(RegisterX rn, RegisterX rd, uint8_t immr,
+                               uint8_t imms, bool N = true,
+                               bool is_64 = true) noexcept;
   // low level memory write
   void write8(int value) noexcept;
   void write32(int instruction) noexcept;
