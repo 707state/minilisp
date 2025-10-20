@@ -46,7 +46,7 @@ enum RegisterX : uint8_t {
 };
 
 class ASMGenerator {
- public:
+public:
   ASMGenerator() noexcept { new_instruction(); }
   // instruction related
   void new_instruction() noexcept;
@@ -71,29 +71,30 @@ class ASMGenerator {
   void gen_orr_imm_instruction(RegisterX rn, RegisterX rd, uint8_t immr,
                                uint8_t imms, bool N = true,
                                bool is_64 = true) noexcept;
+  void gen_cmp_imm_instruction(RegisterX rn, uint16_t imm12, bool shift,
+                               bool is_64 = true) noexcept;
+  // substract with setting flags
+  void gen_subs_imm_instruction(RegisterX rn, RegisterX rd, uint16_t imm12, bool sh,bool is_64=true)noexcept;
+
   // low level memory write
   void write8(int value) noexcept;
   void write32(int instruction) noexcept;
 
-  const std::vector<uint32_t> get_instructions() const noexcept
-  {
+  const std::vector<uint32_t> get_instructions() const noexcept {
     return instructions_;
   }
 
-  size_t get_code_size() const noexcept
-  {
+  size_t get_code_size() const noexcept {
     return instructions_.size() * sizeof(uint32_t);
   }
-  const uint8_t *get_code_ptr() const noexcept
-  {
+  const uint8_t *get_code_ptr() const noexcept {
     return reinterpret_cast<const uint8_t *>(instructions_.data());
   }
 
   /*
    * @brief: helper function!
    */
-  void print_instructions() const noexcept
-  {
+  void print_instructions() const noexcept {
     std::cout << "Generated ARM64 Instructions:" << std::endl;
     std::cout << "=============================" << std::endl;
 
@@ -110,7 +111,7 @@ class ASMGenerator {
   typedef word (*JITFunction)();
   word execute();
 
- private:
+private:
   std::vector<uint32_t> instructions_;
   uint32_t cur_instruction_;
   size_t cur_instr_pos_;

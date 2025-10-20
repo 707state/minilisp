@@ -52,3 +52,14 @@ TEST_CASE("Test add1 function")
   word return_val = generator.execute();
   CHECK_EQ(43, return_val);
 }
+TEST_CASE("Test sub1 function"){
+    ASMGenerator generator;
+    generator.gen_mov_imm_instruction(X0, 42);
+    generator.gen_sub_imm_instruction(X0, X0,1);
+    generator.gen_ret_instruction();
+    generator.init();
+    int result = generator.make_executable();
+    CHECK_EQ(result, 0);
+    word return_val = generator.execute();
+    CHECK_EQ(41, return_val);
+}
