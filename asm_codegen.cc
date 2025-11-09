@@ -6,16 +6,19 @@
 #include "common.hpp"
 #include "object.hpp"
 
-void ASMGenerator::new_instruction() noexcept {
+void ASMGenerator::new_instruction() noexcept
+{
   cur_instruction_ = 0;
-  cur_instr_pos_ = 0;
+  cur_instr_pos_   = 0;
 }
-void ASMGenerator::emit_to_memory() noexcept {
+void ASMGenerator::emit_to_memory() noexcept
+{
   instructions_.emplace_back(cur_instruction_);
-  new_instruction(); // 重置为新的指令
+  new_instruction();  // 重置为新的指令
 }
 void ASMGenerator::gen_mov_imm_instruction(RegisterX reg, uint16_t imm_value,
-                                           uint8_t shift, bool is_64) noexcept {
+                                           uint8_t shift, bool is_64) noexcept
+{
   // MOVZ 基础编码: sf=1, opc=10, 固定位=100101
   uint32_t new_instruction = 0x52800000;
   // sf 字段 (bit 31): 64位模式
@@ -30,15 +33,17 @@ void ASMGenerator::gen_mov_imm_instruction(RegisterX reg, uint16_t imm_value,
 
   write32(new_instruction);
 }
-void ASMGenerator::gen_ret_instruction(RegisterX reg) noexcept {
+void ASMGenerator::gen_ret_instruction(RegisterX reg) noexcept
+{
   uint32_t new_instruction = 0xd65f0000;
-  uint8_t reg_num = static_cast<uint8_t>(reg) & 0x1F;
+  uint8_t reg_num          = static_cast<uint8_t>(reg) & 0x1F;
   new_instruction |= (reg_num << 5);
   write32(new_instruction);
 }
 void ASMGenerator::gen_add_imm_instruction(RegisterX rn, RegisterX rd,
                                            uint16_t imm12, bool shift,
-                                           bool is_64) noexcept {
+                                           bool is_64) noexcept
+{
   uint32_t new_instruction = 0x11000000;
   new_instruction |= (is_64 << 31);
   new_instruction |= (shift << 22);
@@ -49,7 +54,8 @@ void ASMGenerator::gen_add_imm_instruction(RegisterX rn, RegisterX rd,
 }
 void ASMGenerator::gen_sub_imm_instruction(RegisterX rn, RegisterX rd,
                                            uint16_t imm12, bool shift,
-                                           bool is_64) noexcept {
+                                           bool is_64) noexcept
+{
   uint32_t new_instruction = 0x51000000;
   new_instruction |= (is_64 << 31);
   new_instruction |= (shift << 22);
@@ -60,7 +66,8 @@ void ASMGenerator::gen_sub_imm_instruction(RegisterX rn, RegisterX rd,
 }
 void ASMGenerator::gen_lsl_imm_instruction(RegisterX rn, RegisterX rd,
                                            uint8_t immr, uint8_t imms, bool N,
-                                           bool is_64) noexcept {
+                                           bool is_64) noexcept
+{
   uint32_t new_instruction = 0x53000000;
   new_instruction |= (is_64 << 31);
   new_instruction |= (N << 22);
@@ -72,7 +79,8 @@ void ASMGenerator::gen_lsl_imm_instruction(RegisterX rn, RegisterX rd,
 }
 void ASMGenerator::gen_lsr_imm_instruction(RegisterX rn, RegisterX rd,
                                            uint8_t immr, bool N,
-                                           bool is_64) noexcept {
+                                           bool is_64) noexcept
+{
   uint32_t new_instruction = 0x53007c00;
   new_instruction |= (is_64 << 31);
   new_instruction |= (N << 22);
@@ -84,7 +92,8 @@ void ASMGenerator::gen_lsr_imm_instruction(RegisterX rn, RegisterX rd,
 
 void ASMGenerator::gen_orr_imm_instruction(RegisterX rn, RegisterX rd,
                                            uint8_t immr, uint8_t imms, bool N,
-                                           bool is_64) noexcept {
+                                           bool is_64) noexcept
+{
   uint32_t new_instruction = 0x32000000;
   new_instruction |= (is_64 << 31);
   new_instruction |= (N << 22);
@@ -94,12 +103,15 @@ void ASMGenerator::gen_orr_imm_instruction(RegisterX rn, RegisterX rd,
   new_instruction |= (static_cast<uint8_t>(rd) & 0x1f);
   write32(new_instruction);
 }
-void ASMGenerator::gen_cmp_imm_instruction(RegisterX rn,uint16_t imm12,bool shift,bool is_64)noexcept{
-    gen_subs_imm_instruction(rn,XZR,imm12,shift,is_64);
+void ASMGenerator::gen_cmp_imm_instruction(RegisterX rn, uint16_t imm12,
+                                           bool shift, bool is_64) noexcept
+{
+  gen_subs_imm_instruction(rn, XZR, imm12, shift, is_64);
 }
 void ASMGenerator::gen_subs_imm_instruction(RegisterX rn, RegisterX rd,
                                             uint16_t imm12, bool sh,
-                                            bool is_64) noexcept {
+                                            bool is_64) noexcept
+{
   uint32_t new_instruction = 0x71000000;
   new_instruction |= (is_64 << 31);
   new_instruction |= (sh << 22);
@@ -108,7 +120,8 @@ void ASMGenerator::gen_subs_imm_instruction(RegisterX rn, RegisterX rd,
   new_instruction |= (static_cast<uint8_t>(rd) & 0x1f);
   write32(new_instruction);
 }
-void ASMGenerator::write8(int value) noexcept {
+void ASMGenerator::write8(int value) noexcept
+{
   assert(cur_instr_pos_ < 4 && "Instruction already complete");
 
   cur_instruction_ |= (static_cast<uint32_t>(value) << (cur_instr_pos_ * 8));
@@ -119,7 +132,8 @@ void ASMGenerator::write8(int value) noexcept {
   }
 }
 
-void ASMGenerator::write32(int instruction) noexcept {
+void ASMGenerator::write32(int instruction) noexcept
+{
   if (cur_instr_pos_ > 0) {
     emit_to_memory();
   }
@@ -127,7 +141,8 @@ void ASMGenerator::write32(int instruction) noexcept {
   cur_instruction_ = instruction;
   emit_to_memory();
 }
-void ASMGenerator::init() {
+void ASMGenerator::init()
+{
   memory_ = mmap(nullptr, get_code_size(), PROT_READ | PROT_WRITE,
                  MAP_ANON | MAP_PRIVATE, -1, 0);
   if (memory_ == MAP_FAILED) {
@@ -136,16 +151,19 @@ void ASMGenerator::init() {
   memcpy(memory_, get_code_ptr(), get_code_size());
 }
 int ASMGenerator::reclaim() { return munmap(memory_, get_code_size()); }
-int ASMGenerator::make_executable() {
+int ASMGenerator::make_executable()
+{
   return mprotect(memory_, get_code_size(), PROT_READ | PROT_EXEC);
 }
 
-word ASMGenerator::execute() {
+word ASMGenerator::execute()
+{
   JITFunction function = (JITFunction)memory_;
   return function();
 }
 
-int ASMGenerator::compile_expr(ASTNode *node) {
+int ASMGenerator::compile_expr(ASTNode *node)
+{
   if (AST_is_integer(node)) {
     word value = AST_get_integer(node);
     gen_mov_imm_instruction(X0, Object_encode_integer(value));
@@ -171,7 +189,8 @@ int ASMGenerator::compile_expr(ASTNode *node) {
   assert(0 && "unexpected node type");
 }
 
-int ASMGenerator::compile_function(ASTNode *node) {
+int ASMGenerator::compile_function(ASTNode *node)
+{
   int result = compile_expr(node);
   if (result != 0) {
     return result;
@@ -180,7 +199,8 @@ int ASMGenerator::compile_function(ASTNode *node) {
   return 0;
 }
 
-int ASMGenerator::compile_call(ASTNode *callable, ASTNode *args) {
+int ASMGenerator::compile_call(ASTNode *callable, ASTNode *args)
+{
   assert(AST_pair_cdr(args) == AST_nil() &&
          "only unary function calls supported");
   // TODO
@@ -190,19 +210,24 @@ int ASMGenerator::compile_call(ASTNode *callable, ASTNode *args) {
       // add instruction
       gen_add_imm_instruction(X0, X0, Object_encode_integer(1));
       return 0;
-    } else if (AST_symbol_matches(callable, "sub1")) {
+    }
+    else if (AST_symbol_matches(callable, "sub1")) {
       compile_expr(operand1(args));
-    } else if (AST_symbol_matches(callable, "integer->char")) {
+    }
+    else if (AST_symbol_matches(callable, "integer->char")) {
       compile_expr(operand1(args));
       gen_lsl_imm_instruction(X0, X0, 64 - (kCharShift - kIntegerShift), 0x3f);
       // TODO: 这里需要再学一下a64指令集里面imms, immr的编码规则
       gen_orr_imm_instruction(X0, X0, 0, 0x3c);
       return 0;
-    } else if (AST_symbol_matches(callable, "char->integer")) {
+    }
+    else if (AST_symbol_matches(callable, "char->integer")) {
       compile_expr(operand1(args));
       gen_lsr_imm_instruction(X0, X0, kCharShift - kIntegerShift, 0x3f);
       return 0;
-    } else if (AST_symbol_matches(callable, "nil?")) {
+    }
+    else if (AST_symbol_matches(callable, "nil?")) {
+      // TODO: 实习nil?这个函数的原型
     }
   }
   assert(0 && "unexpected call type");
