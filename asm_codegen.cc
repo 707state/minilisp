@@ -18,24 +18,22 @@ void ASMGenerator::emit_to_memory() noexcept
   instructions_.emplace_back(cur_instruction_);
   new_instruction();  // 重置为新的指令
 }
-
-// mov instruction
-void ASMGenerator::gen_mov_imm_instruction(RegisterX reg, uint16_t imm_value,
+void ASMGenerator::gen_movz_instruction(RegisterX rd, uint16_t imm, uint8_t hw,
+                                        bool is_64) noexcept
+{
+  uint32_t new_instruction = 0x52800000;
+  new_instruction |= (is_64 << 31);
+  new_instruction |= ((hw & 0x3) << 21);
+  new_instruction |= (imm << 5);
+  new_instruction |= (static_cast<uint8_t>(rd) & 0x1f);
+  write32(new_instruction);
+}
+// mov wide imm instruction
+void ASMGenerator::gen_mov_imm_instruction(RegisterX rd, uint16_t imm_value,
                                            uint8_t shift, bool is_64) noexcept
 {
-  // MOVZ 基础编码: sf=1, opc=10, 固定位=100101
-  uint32_t new_instruction = 0x52800000;
-  // sf 字段 (bit 31): 64位模式
-  new_instruction |= (is_64 << 31);
-  // hw 字段 (bits 22-21): 移位量 (0=0, 1=16, 2=32, 3=48)
-  uint8_t hw_value = shift / 16;
-  new_instruction |= (hw_value << 21);
-  // imm16 字段 (bits 20-5): 16位立即数
-  new_instruction |= ((imm_value & 0xFFFF) << 5);
-  // Rd 字段 (bits 4-0): 目标寄存器
-  new_instruction |= (static_cast<uint8_t>(reg) & 0x1F);
-
-  write32(new_instruction);
+  assert(shift == 0 || shift == 16 || shift == 32 || shift == 64);
+  gen_movz_instruction(rd, imm_value, shift / 16, is_64);
 }
 
 // ret instruction
@@ -275,7 +273,7 @@ void ASMGenerator::compile_compare_imm32(int32_t value)
   // move 0/1 to payload
   gen_lsl_imm_instruction(X0, X0, kBoolShift);
   BitmaskImmediate imm;
-  auto ok = BitmaskImmediate::try_from(value, imm);
+  auto ok = BitmaskImmediate::try_from(kBoolTag, imm);
   if (!ok) {
     assert(0 && "Failed to encode value in compare_imm32");
   }
@@ -296,27 +294,24 @@ int ASMGenerator::compile_call(ASTNode *callable, ASTNode *args)
     }
     else if (AST_symbol_matches(callable, "sub1")) {
       compile_expr(operand1(args));
+      gen_sub_imm_instruction(X0, X0, Object_encode_integer(1));
+      return 0;
     }
     else if (AST_symbol_matches(callable, "integer->char")) {
       compile_expr(operand1(args));
+      gen_lsl_imm_instruction(X0, X0, kCharShift - kIntegerShift);
       BitmaskImmediate imm;
-      bool ok = BitmaskImmediate::try_from(kCharShift - kIntegerShift, imm);
+      bool ok = BitmaskImmediate::try_from(kCharTag, imm);
       if (!ok) {
         assert(0 && "Unable to decode kCharShift-kIntegerShift");
       }
-      gen_lsl_imm_instruction(X0, X0, kCharShift - kIntegerShift);
-      // TODO: 这里需要再学一下a64指令集里面imms, immr的编码规则
       gen_orr_imm_instruction(X0, X0, imm.immr, imm.imms, imm.n);
       return 0;
     }
     else if (AST_symbol_matches(callable, "char->integer")) {
       compile_expr(operand1(args));
-      BitmaskImmediate imm;
-      bool ok = BitmaskImmediate::try_from(kCharShift - kIntegerShift, imm);
-      if (!ok) {
-        assert(0 && "Failed to decode kCharShift - kIntegerShift");
-      }
-      gen_lsr_imm_instruction(X0, X0, kCharShift - kIntegerShift);
+      gen_lsr_imm_instruction(X0, X0, kCharShift);
+      gen_lsl_imm_instruction(X0, X0, kIntegerShift);
       return 0;
     }
     else if (AST_symbol_matches(callable, "nil?")) {

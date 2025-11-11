@@ -2,12 +2,12 @@ from capstone import *
 
 if __name__ == "__main__":
     hex_instructions = [
-    "d2800280",
-    "92401c00",
-    "f1007c1f",
+    "d28007c0",
+    "92400400",
+    "f1000c1f",
     "9a9f17e0",
     "d37be800",
-    "b2401000",
+    "b2400400",
     "d65f03c0",
     ]
 

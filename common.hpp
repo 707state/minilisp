@@ -13,36 +13,34 @@ const int kBitsPerByte = 8;
 const int kWordSize    = sizeof(word);
 const int kBitsPerWord = kWordSize * kBitsPerByte;
 
-// Integer tagging
-const unsigned int kIntegerTag     = 0x0;
-const unsigned int kIntegerTagMask = 0x3;  //  0b11, 可编码
-const unsigned int kIntegerShift   = 2;
-const unsigned int kIntegerBits    = kBitsPerWord - kIntegerShift;
-const word kIntegerMax             = (1LL << (kIntegerBits - 1)) - 1;
-const word kIntegerMin             = -(1LL << (kIntegerBits - 1));
+// tags
+const unsigned int kIntegerTag = 0x0;
+const unsigned int kPairTag    = 0x1;
+const unsigned int kCharTag    = 0x0F;
+const unsigned int kBoolTag    = 0x1F;
 
+const unsigned int kIntegerTagMask = 0x3;  //  0b11, 可编码
 // Immediate mask — 用于判断是否是 immediate（如bool, char等）
 const unsigned int kImmediateTagMask = 0x1F;
+const unsigned int kBoolMask         = 0x1F;
+// Heap pointer tagging
+const uword kHeapTagMask = 0xF;
+// Symbol tagging
+const unsigned int kSymbolTag = 0x7;
 
-// Char tagging
-const unsigned int kCharTag   = 0x0F;
+const unsigned int kIntegerShift = 2;
+const unsigned int kIntegerBits  = kBitsPerWord - kIntegerShift;
+const word kIntegerMax           = (1LL << (kIntegerBits - 1)) - 1;
+const word kIntegerMin           = -(1LL << (kIntegerBits - 1));
+
 const unsigned int kCharMask  = 0xFF;
 const unsigned int kCharShift = 8;
 
-// Bool tagging
-const unsigned int kBoolTag = 0x1F;
 // 对于简单的 tag 判断，这里用 0xFF 替代也行
 
-const unsigned int kBoolMask  = 0x1F;
 const unsigned int kBoolShift = 5;
 
-// Heap pointer tagging
-const unsigned int kPairTag = 0x1;
-const uword kHeapTagMask    = 0xF;
-const uword kHeapPtrMask    = ~kHeapTagMask;
-
-// Symbol tagging
-const unsigned int kSymbolTag = 0x7;
+const uword kHeapPtrMask = ~kHeapTagMask;
 
 // BitmaskImmediate 表示 AArch64 logical immediate 的三段编码 (n, imms, immr)
 struct BitmaskImmediate {
@@ -128,33 +126,3 @@ struct BitmaskImmediate {
     return true;
   }
 };
-
-// const int kBitsPerByte = 8;                         // bits
-// const int kWordSize    = sizeof(word);              // bytes
-// const int kBitsPerWord = kWordSize * kBitsPerByte;  // bits
-
-// const unsigned int kIntegerTag     = 0x0;
-// const unsigned int kIntegerTagMask = 0x3;
-// const unsigned int kIntegerShift   = 2;
-// const unsigned int kIntegerBits    = kBitsPerWord - kIntegerShift;
-// const word kIntegerMax             = (1LL << (kIntegerBits - 1)) - 1;
-// const word kIntegerMin             = -(1LL << (kIntegerBits - 1));
-
-// const unsigned int kImmediateTagMask = 0x3f;
-
-// const unsigned int kCharTag   = 0xf;   // 0b00001111
-// const unsigned int kCharMask  = 0xff;  // 0b11111111
-// const unsigned int kCharShift = 8;
-
-// const unsigned int kBoolTag   = 0x1f;  // 0b0011111
-// const unsigned int kBoolMask  = 0x80;  // 0b10000000
-// const unsigned int kBoolShift = 7;
-
-// // tag
-// const unsigned int kPairTag = 0x1;
-// const uword kHeapTagMask    = ((uword)0x7);
-// const uword kHeapPtrMask    = ~kHeapTagMask;
-
-// // symbol
-
-// const unsigned int kSymbolTag = 0x5;

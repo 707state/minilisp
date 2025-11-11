@@ -92,25 +92,30 @@ class ASMGenerator {
   int compile_function(ASTNode *node);
   int compile_call(ASTNode *callable, ASTNode *args);
 
- private:
   void compile_compare_imm32(int32_t value);
   // codegen
-  void gen_mov_imm_instruction(RegisterX reg, uint16_t imm_value,
-                               uint8_t shift = 0, bool is_64 = true) noexcept;
   void gen_ret_instruction(RegisterX reg = X30) noexcept;
   void gen_add_imm_instruction(RegisterX rn, RegisterX rd, uint16_t imm12,
                                bool shift = 0, bool is_64 = true) noexcept;
   void gen_sub_imm_instruction(RegisterX rn, RegisterX rd, uint16_t imm12,
                                bool shift = 0, bool is_64 = true) noexcept;
+  // Unsigned bitfield move
   void gen_ubfm_instruction(RegisterX rn, RegisterX rd, uint8_t immr,
                             uint8_t imms, bool N, bool is_64 = true) noexcept;
+  // alias to UBFM instruction
   void gen_lsl_imm_instruction(RegisterX rn, RegisterX rd, int shift,
                                bool is_64 = true) noexcept;
   void gen_lsr_imm_instruction(RegisterX rn, RegisterX rd, int shift,
                                bool is_64 = true) noexcept;
+  // Bitwise OR (immediate)
   void gen_orr_imm_instruction(RegisterX rn, RegisterX rd, uint8_t immr,
                                uint8_t imms, bool N,
                                bool is_64 = true) noexcept;
+  void gen_movz_instruction(RegisterX rd, uint16_t imm16, uint8_t hw,
+                            bool is_64 = true) noexcept;
+  // alias to movz
+  void gen_mov_imm_instruction(RegisterX reg, uint16_t imm_value,
+                               uint8_t shift = 0, bool is_64 = true) noexcept;
   // cmp instruction is an alias to subs command
   void gen_cmp_imm_instruction(RegisterX rn, uint16_t imm12, bool shift,
                                bool is_64 = true) noexcept;

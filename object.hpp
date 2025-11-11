@@ -9,10 +9,10 @@ word Object_encode_integer(word value)
 {
   assert(value < kIntegerMax && "too big");
   assert(value > kIntegerMin && "too small");
-  return value << kIntegerShift;
+  return (value << kIntegerShift) | kIntegerTag;
 }
 
-word Object_decode_integer(word value) { return value >> kIntegerShift; }
+word Object_decode_integer(word value) { return (value >> kIntegerShift); }
 
 word Object_encode_char(char value)
 {

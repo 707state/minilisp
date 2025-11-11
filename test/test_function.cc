@@ -6,6 +6,10 @@
 #include "ast.hpp"
 #include "doctest.h"
 #include "object.hpp"
+#define SETUP()     \
+  generator.init(); \
+  generator.make_executable();
+
 TEST_CASE("Compile char test")
 {
   ASMGenerator generator;
@@ -80,25 +84,81 @@ TEST_CASE("compile add1 function test")
   word return_val = generator.execute();
   CHECK_EQ(return_val, Object_encode_integer(124));
 }
-TEST_CASE("compile boolean? function test. expect false")
+TEST_CASE("compile boolean? function test")
 {
-  ASTNode *node = new_unary_call("boolean?", AST_new_integer(5));
-  ASMGenerator generator;
-  generator.compile_function(node);
-  generator.init();
-  generator.make_executable();
-  generator.print_instructions();
-  word return_val = generator.execute();
-  CHECK_EQ(return_val, Object_false());
+  {
+    ASTNode *node = new_unary_call("boolean?", AST_new_integer(5));
+    ASMGenerator generator;
+    generator.compile_function(node);
+    generator.init();
+    generator.make_executable();
+    generator.print_instructions();
+    word return_val = generator.execute();
+    CHECK_EQ(return_val, Object_false());
+  }
+  {
+    ASTNode *node = new_unary_call("boolean?", AST_new_bool(true));
+    ASMGenerator generator;
+    generator.compile_function(node);
+    generator.init();
+    generator.make_executable();
+    generator.print_instructions();
+    word return_val = generator.execute();
+    CHECK_EQ(return_val, Object_true());
+  }
 }
-TEST_CASE("compile boolean? function test. expect true")
+TEST_CASE("compile integer->char function test")
 {
-  ASTNode *node = new_unary_call("boolean?", AST_new_bool(true));
+  ASTNode *node = new_unary_call("integer->char", AST_new_integer(97));
   ASMGenerator generator;
   generator.compile_function(node);
   generator.init();
   generator.make_executable();
   generator.print_instructions();
   word return_val = generator.execute();
-  CHECK_EQ(return_val, Object_true());
+  CHECK_EQ(return_val, Object_encode_char('a'));
+}
+TEST_CASE("compile char->integer function test")
+{
+  ASTNode *node = new_unary_call("char->integer", AST_new_char('a'));
+  ASMGenerator generator;
+  generator.compile_function(node);
+  generator.init();
+  generator.make_executable();
+  generator.print_instructions();
+  word return_val = generator.execute();
+  CHECK_EQ(return_val, Object_encode_integer(97));
+}
+
+TEST_CASE("compile integer? function test")
+{
+  {
+    ASTNode *node = new_unary_call("integer?", AST_new_integer(9));
+    ASMGenerator generator;
+    generator.compile_function(node);
+    SETUP();
+    word return_val = generator.execute();
+    CHECK_EQ(return_val, Object_true());
+  }
+  {
+    ASTNode *node = new_unary_call("integer?", AST_new_bool(true));
+    ASMGenerator generator;
+    generator.compile_function(node);
+    SETUP();
+    generator.print_instructions();
+    word return_val = generator.execute();
+    CHECK_EQ(return_val, Object_false());
+  }
+}
+
+TEST_CASE("compile sub1 function test")
+{
+  {
+    ASTNode *node = new_unary_call("sub1", AST_new_integer(20));
+    ASMGenerator generator;
+    generator.compile_function(node);
+    SETUP();
+    word return_val = generator.execute();
+    CHECK_EQ(return_val, Object_encode_integer(19));
+  }
 }
