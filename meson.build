@@ -3,7 +3,7 @@ project(
   ['c','cpp'],
   meson_version : '>= 1.3.0',
   version : '0.1',
-  default_options : ['warning_level=3','cpp_std=c++23'],
+  default_options : ['warning_level=3','cpp_std=c++17'],
 )
 asm_codegen_library_src=[
     'asm_codegen.cc'
@@ -39,7 +39,8 @@ doctest_lib_dep=doctest_lib.get_variable('doctest_dep')
 test_src=[
     'test/main.cc',
     'test/test_function.cc',
-    'test/test_implicit_conversion.cc'
+    'test/test_implicit_conversion.cc',
+    'test/test_bitmask_imm.cc'
 ]
 
 executable('tests',

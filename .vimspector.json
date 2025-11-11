@@ -1,0 +1,19 @@
+{
+  "configurations": {
+    "launch": {
+      "adapter": "CodeLLDB",
+      "filetypes": [
+        "c",
+        "cpp",
+        "rust"
+      ],
+      "configuration": {
+        "request": "launch",
+        "program": "${workspaceRoot}/build/tests",
+        "sourceLanguages": [
+          "cpp"
+        ]
+      }
+    }
+  }
+}

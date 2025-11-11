@@ -5,11 +5,13 @@
 #include <cstdint>
 #include <iomanip>
 #include <iostream>
+#include <optional>
 #include <vector>
 
 #include "ast.hpp"
 #include "common.hpp"
 #include "object.hpp"
+
 enum RegisterX : uint8_t {
   X0 = 0,
   X1,
@@ -45,8 +47,42 @@ enum RegisterX : uint8_t {
   XZR
 };
 
+enum class IVCond : uint8_t {
+  NE = 0,
+  EQ,
+  CC,
+  CS,
+  PL,
+  MI,
+  VC,
+  VS,
+  LS,
+  HI,
+  LT,
+  GE,
+  LE,
+  GT,
+};
+enum class Cond : uint8_t {
+  EQ = 0,
+  NE,
+  CS,
+  CC,
+  MI,
+  PL,
+  VS,
+  VC,
+  HI,
+  LS,
+  GE,
+  LT,
+  GT,
+  LE,
+  AL,
+  NV
+};
 class ASMGenerator {
-public:
+ public:
   ASMGenerator() noexcept { new_instruction(); }
   // instruction related
   void new_instruction() noexcept;
@@ -55,6 +91,9 @@ public:
   int compile_expr(ASTNode *node);
   int compile_function(ASTNode *node);
   int compile_call(ASTNode *callable, ASTNode *args);
+
+ private:
+  void compile_compare_imm32(int32_t value);
   // codegen
   void gen_mov_imm_instruction(RegisterX reg, uint16_t imm_value,
                                uint8_t shift = 0, bool is_64 = true) noexcept;
@@ -63,47 +102,73 @@ public:
                                bool shift = 0, bool is_64 = true) noexcept;
   void gen_sub_imm_instruction(RegisterX rn, RegisterX rd, uint16_t imm12,
                                bool shift = 0, bool is_64 = true) noexcept;
-  void gen_lsl_imm_instruction(RegisterX rn, RegisterX rd, uint8_t immr,
-                               uint8_t imms, bool N = true,
+  void gen_ubfm_instruction(RegisterX rn, RegisterX rd, uint8_t immr,
+                            uint8_t imms, bool N, bool is_64 = true) noexcept;
+  void gen_lsl_imm_instruction(RegisterX rn, RegisterX rd, int shift,
                                bool is_64 = true) noexcept;
-  void gen_lsr_imm_instruction(RegisterX rn, RegisterX rd, uint8_t immr,
-                               bool N = true, bool is_64 = true) noexcept;
+  void gen_lsr_imm_instruction(RegisterX rn, RegisterX rd, int shift,
+                               bool is_64 = true) noexcept;
   void gen_orr_imm_instruction(RegisterX rn, RegisterX rd, uint8_t immr,
-                               uint8_t imms, bool N = true,
+                               uint8_t imms, bool N,
                                bool is_64 = true) noexcept;
+  // cmp instruction is an alias to subs command
   void gen_cmp_imm_instruction(RegisterX rn, uint16_t imm12, bool shift,
                                bool is_64 = true) noexcept;
+  // conditional select instruction
+  void gen_csel_instruction(RegisterX rm, RegisterX rn, RegisterX rd, Cond cond,
+                            bool is_64 = true) noexcept;
+  void gen_cset_instruction(RegisterX rd, IVCond cond,
+                            bool is_64 = true) noexcept;
   // substract with setting flags
-  void gen_subs_imm_instruction(RegisterX rn, RegisterX rd, uint16_t imm12, bool sh,bool is_64=true)noexcept;
+  void gen_subs_imm_instruction(RegisterX rn, RegisterX rd, uint16_t imm12,
+                                bool sh, bool is_64 = true) noexcept;
+
+  void gen_and_imm_instruction(RegisterX rn, RegisterX rd, uint8_t immr,
+                               uint8_t imms, bool N,
+                               bool is_64 = true) noexcept;
 
   // low level memory write
   void write8(int value) noexcept;
   void write32(int instruction) noexcept;
 
-  const std::vector<uint32_t> get_instructions() const noexcept {
+  const std::vector<uint32_t> get_instructions() const noexcept
+  {
     return instructions_;
   }
 
-  size_t get_code_size() const noexcept {
+  size_t get_code_size() const noexcept
+  {
     return instructions_.size() * sizeof(uint32_t);
   }
-  const uint8_t *get_code_ptr() const noexcept {
+  const uint8_t *get_code_ptr() const noexcept
+  {
     return reinterpret_cast<const uint8_t *>(instructions_.data());
   }
 
   /*
    * @brief: helper function!
    */
-  void print_instructions() const noexcept {
+  void print_instructions() const noexcept
+  {
     std::cout << "Generated ARM64 Instructions:" << std::endl;
     std::cout << "=============================" << std::endl;
+    const uint8_t *byte_ptr =
+        reinterpret_cast<const uint8_t *>(instructions_.data());
 
     for (size_t i = 0; i < instructions_.size(); i++) {
-      std::cout << "[" << std::dec << i << "] 0x" << std::hex << std::setw(8)
-                << std::setfill('0') << instructions_[i] << std::endl;
+      const uint8_t *instr_bytes = byte_ptr + i * 4;
+
+      // 从高字节到低字节打印（符合阅读习惯）
+      for (int j = 3; j >= 0; j--) {
+        std::cout << std::hex << std::setw(2) << std::setfill('0')
+                  << static_cast<int>(instr_bytes[j]);
+      }
+      std::cout << std::endl;
     }
     std::cout << std::dec;
   }
+
+ public:
   // mmap related!
   void init();
   int reclaim();
@@ -111,7 +176,7 @@ public:
   typedef word (*JITFunction)();
   word execute();
 
-private:
+ private:
   std::vector<uint32_t> instructions_;
   uint32_t cur_instruction_;
   size_t cur_instr_pos_;

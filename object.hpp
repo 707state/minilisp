@@ -23,17 +23,28 @@ char Object_decode_char(word value)
 {
   return (value >> kCharShift) & kCharMask;
 }
-
 word Object_encode_bool(bool value)
 {
   return ((word)value << kBoolShift) | kBoolTag;
 }
 
-bool Object_decode_bool(word value) { return value & kBoolMask; }
+bool Object_decode_bool(word value)
+{
+  return (bool)((value >> kBoolShift) & 1);
+}
 
 word Object_true() { return Object_encode_bool(true); }
-
 word Object_false() { return Object_encode_bool(false); }
+// word Object_encode_bool(bool value)
+// {
+//   return ((word)value << kBoolShift) | kBoolTag;
+// }
+
+// bool Object_decode_bool(word value) { return value & kBoolMask; }
+
+// word Object_true() { return Object_encode_bool(true); }
+
+// word Object_false() { return Object_encode_bool(false); }
 
 word Object_nil() { return 0x2f; }
 
