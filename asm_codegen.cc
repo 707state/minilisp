@@ -178,6 +178,91 @@ void ASMGenerator::gen_and_imm_instruction(RegisterX rn, RegisterX rd,
   write32(new_instruction);
 }
 
+// store pair of registers
+void ASMGenerator::gen_stp_instruction(RegisterX rn, RegisterX rt,
+                                       RegisterX rt2, uint8_t imm,
+                                       bool is_pre_index, bool is_signed_offset,
+                                       bool is_64) noexcept
+{
+  uint32_t new_instruction = 0x28000000;
+  if (is_signed_offset) {
+    new_instruction |= (0x2 << 23);
+  }
+  else {
+    new_instruction |= ((is_pre_index ? 0x3 : 0x1) << 23);
+  }
+  new_instruction |= (is_64 << 31);
+  new_instruction |= ((imm & 0x7f) << 15);
+  new_instruction |= ((static_cast<uint8_t>(rt2) & 0x1f) << 10);
+  new_instruction |= ((static_cast<uint8_t>(rn) & 0x1f) << 5);
+  new_instruction |= (static_cast<uint8_t>(rt) & 0x1f);
+  write32(new_instruction);
+}
+// load pair of registers
+void ASMGenerator::gen_ldp_instruction(RegisterX rn, RegisterX rt,
+                                       RegisterX rt2, uint8_t imm,
+                                       bool is_pre_index, bool is_signed_offset,
+                                       bool is_64) noexcept
+{
+  // only difference with stp is the 22th bit
+  uint32_t new_instruction = 0x28400000;
+  if (is_signed_offset) {
+    new_instruction |= (0x2 << 23);
+  }
+  else {
+    new_instruction |= ((is_pre_index ? 0x3 : 0x1) << 23);
+  }
+  new_instruction |= (is_64 << 31);
+  new_instruction |= ((imm & 0x7f) << 15);
+  new_instruction |= ((static_cast<uint8_t>(rt2) & 0x1f) << 10);
+  new_instruction |= ((static_cast<uint8_t>(rn) & 0x1f) << 5);
+  new_instruction |= (static_cast<uint8_t>(rt) & 0x1f);
+  write32(new_instruction);
+}
+
+// store register
+void ASMGenerator::gen_str_imm_instruction(RegisterX rn, RegisterX rt,
+                                           uint16_t imm, bool is_pre_index,
+                                           bool is_unsigned_offset,
+                                           bool is_64) noexcept
+{
+  uint32_t new_instruction = 0xb8000000;
+  new_instruction |= (is_64 << 30);
+  if (is_unsigned_offset) {
+    new_instruction |= (0x1 << 24);
+    new_instruction |= ((imm & 0xfff) << 10);
+  }
+  else {
+    new_instruction |= (0x1 << 10);
+    new_instruction |= (is_pre_index << 11);
+    new_instruction |= ((imm & 0x1ff) << 12);
+  }
+  new_instruction |= ((static_cast<uint8_t>(rn) & 0x1f) << 5);
+  new_instruction |= (static_cast<uint8_t>(rt) & 0x1f);
+  write32(new_instruction);
+}
+// load register
+void ASMGenerator::gen_ldr_imm_instruction(RegisterX rn, RegisterX rt,
+                                           uint16_t imm, bool is_pre_index,
+                                           bool is_unsigned_offset,
+                                           bool is_64) noexcept
+{
+  uint32_t new_instruction = 0xb8400000;
+  new_instruction |= (is_64 << 30);
+  if (is_unsigned_offset) {
+    new_instruction |= (0x1 << 24);
+    new_instruction |= ((imm & 0xfff) << 10);
+  }
+  else {
+    new_instruction |= (0x1 << 10);
+    new_instruction |= (is_pre_index << 11);
+    new_instruction |= ((imm & 0x1ff) << 12);
+  }
+  new_instruction |= ((static_cast<uint8_t>(rn) & 0x1f) << 5);
+  new_instruction |= (static_cast<uint8_t>(rt) & 0x1f);
+  write32(new_instruction);
+}
+
 // write to memory
 
 void ASMGenerator::write8(int value) noexcept

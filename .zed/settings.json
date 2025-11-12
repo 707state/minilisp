@@ -1,0 +1,17 @@
+{
+  "languages": {
+    "C++": {
+      "formatter": {
+        "external": {
+          "command": "clang-format",
+          "arguments": ["--style=file", "--assume-filename=${buffer_path}"]
+        }
+      }
+    }
+  },
+  "buffer_font_family": "FiraCode Nerd Font Mono",
+  "buffer_font_features": {
+    "liga": true,
+    "calc": true
+  }
+}

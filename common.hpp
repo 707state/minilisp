@@ -126,3 +126,73 @@ struct BitmaskImmediate {
     return true;
   }
 };
+
+enum RegisterX : uint8_t {
+  X0 = 0,
+  X1,
+  X2,
+  X3,
+  X4,
+  X5,
+  X6,
+  X7,
+  X8,
+  X9,
+  X10,
+  X11,
+  X12,
+  X13,
+  X14,
+  X15,
+  X16,
+  X17,
+  X18,
+  X19,
+  X20,
+  X21,
+  X22,
+  X23,
+  X24,
+  X25,
+  X26,
+  X27,
+  X28,
+  X29,
+  X30,
+  XZR
+};
+
+enum class IVCond : uint8_t {
+  NE = 0,
+  EQ,
+  CC,
+  CS,
+  PL,
+  MI,
+  VC,
+  VS,
+  LS,
+  HI,
+  LT,
+  GE,
+  LE,
+  GT,
+};
+enum class Cond : uint8_t {
+  EQ = 0,
+  NE,
+  CS,
+  CC,
+  MI,
+  PL,
+  VS,
+  VC,
+  HI,
+  LS,
+  GE,
+  LT,
+  GT,
+  LE,
+  AL,
+  NV
+};

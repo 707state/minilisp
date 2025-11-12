@@ -178,5 +178,6 @@ ASTNode *new_unary_call(const char *name, ASTNode *arg)
 }
 
 ASTNode *operand1(ASTNode *args) { return AST_pair_car(args); }
+ASTNode *operand2(ASTNode *args) { return AST_pair_car(AST_pair_cdr(args)); }
 
 // End AST
