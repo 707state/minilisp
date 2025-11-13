@@ -6,3 +6,9 @@ a.out
 __pycache__
 .ropeproject
 uv.lock
+
+
+# Added by cargo
+
+/target
+Cargo.lock
