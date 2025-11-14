@@ -6,7 +6,6 @@ use core::ffi::c_void;
 use core::ptr;
 use std::ffi::CStr;
 use std::os::raw::c_char;
-use std::slice;
 
 use libc::{calloc, free};
 
@@ -18,16 +17,15 @@ pub type ASTNode = usize;
 
 // Utility functions
 
-pub fn ast_heap_alloc(tag: uword, size: usize) -> ASTNode {
-    // calloc(size, 1) returns a pointer. We store its address ORed with tag (like the C code).
-    unsafe {
-        let ptr = calloc(size, 1) as usize;
-        (ptr | (tag as usize)) as ASTNode
-    }
-}
-
 pub fn AST_heap_alloc(tag: uword, size: uword) -> ASTNode {
-    ast_heap_alloc(tag, size as usize)
+    {
+        let size = size as usize;
+        // calloc(size, 1) returns a pointer. We store its address ORed with tag (like the C code).
+        unsafe {
+            let ptr = calloc(size, 1) as usize;
+            (ptr | (tag as usize)) as ASTNode
+        }
+    }
 }
 
 pub fn AST_is_heap_object(node: ASTNode) -> bool {
@@ -201,9 +199,15 @@ pub fn list1(item0: ASTNode) -> ASTNode {
 pub fn list2(item0: ASTNode, item1: ASTNode) -> ASTNode {
     AST_new_pair(item0, list1(item1))
 }
+pub fn list3(item0: ASTNode, item1: ASTNode, item2: ASTNode) -> ASTNode {
+    AST_new_pair(item0, list2(item1, item2))
+}
 
 pub fn new_unary_call(name: &CStr, arg: ASTNode) -> ASTNode {
     list2(AST_new_symbol(name), arg)
+}
+pub fn new_binary_call(name: &CStr, arg0: ASTNode, arg1: ASTNode) -> ASTNode {
+    list3(AST_new_symbol(name), arg0, arg1)
 }
 
 pub fn operand1(args: ASTNode) -> ASTNode {

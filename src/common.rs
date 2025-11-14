@@ -3,9 +3,9 @@
 pub type word = i64;
 pub type uword = u64;
 
-pub const K_BITS_PER_BYTE: usize = 8;
-pub const K_WORD_SIZE: usize = core::mem::size_of::<word>();
-pub const K_BITS_PER_WORD: usize = K_WORD_SIZE * K_BITS_PER_BYTE;
+pub const K_BITS_PER_BYTE: word = 8;
+pub const K_WORD_SIZE: word = core::mem::size_of::<word>() as word;
+pub const K_BITS_PER_WORD: word = K_WORD_SIZE * K_BITS_PER_BYTE;
 
 // tags
 pub const K_INTEGER_TAG: u32 = 0x0;
@@ -23,7 +23,7 @@ pub const K_HEAP_TAG_MASK: uword = 0xF;
 pub const K_SYMBOL_TAG: u32 = 0x7;
 
 pub const K_INTEGER_SHIFT: u32 = 2;
-pub const K_INTEGER_BITS: usize = (K_BITS_PER_WORD) - (K_INTEGER_SHIFT as usize);
+pub const K_INTEGER_BITS: usize = (K_BITS_PER_WORD as usize) - (K_INTEGER_SHIFT as usize);
 pub const K_INTEGER_MAX: word = ((1i128 << (K_INTEGER_BITS as i128 - 1)) - 1) as word;
 pub const K_INTEGER_MIN: word = (-(1i128 << (K_INTEGER_BITS as i128 - 1))) as word;
 
@@ -134,7 +134,10 @@ pub enum RegisterX {
     X29 = 29,
     X30 = 30,
     XZR = 31,
+    MovRegister = 63,
 }
+// SP和XZR/WZR寄存器的值是一致的。
+pub const SP: RegisterX = RegisterX::XZR;
 
 // IVCond
 #[repr(u8)]

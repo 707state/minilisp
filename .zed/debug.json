@@ -6,7 +6,7 @@
   {
     "label": "Debug boolean?",
     "adapter": "CodeLLDB",
-    "program": "$ZED_WORKTREE_ROOT/build/tests",
+    "program": "$ZED_WORKTREE_ROOT/target/debug/minilisp",
     "request": "launch"
   }
 ]
