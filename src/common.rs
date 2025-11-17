@@ -33,6 +33,9 @@ pub const K_CHAR_SHIFT: u32 = 8;
 pub const K_BOOL_SHIFT: u32 = 5;
 
 pub const K_HEAP_PTR_MASK: uword = !K_HEAP_TAG_MASK;
+/*
+ * This part of code is copied from Ruby YJIT
+ */
 
 // BitmaskImmediate: represents AArch64 logical immediate encoding (n, imms, immr)
 // Layout in instruction (13 bits): [n:1 imms:6 immr:6] -> to_u32 returns that placed in low bits
@@ -180,7 +183,15 @@ pub enum Cond {
     AL,
     NV,
 }
-
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Shift {
+    LSL = 0,
+    LSR = 1,
+    ASR = 2,
+    ROR = 3,
+}
+pub const RESERVED: Shift = Shift::ROR;
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -67,7 +67,14 @@ impl ASMGenerator {
         self.gen_movz_instruction(rd, imm, shift / 16, is_64);
     }
     pub fn gen_mov_reg_instruction(&mut self, rd: RegisterX, rm: RegisterX, is_64: bool) {
-        self.gen_orr_shifted_reg_instruction(rd, RegisterX::MovRegister, rm, 0x0, 0, is_64);
+        self.gen_orr_shifted_reg_instruction(
+            rd,
+            RegisterX::MovRegister,
+            rm,
+            0x0,
+            Shift::LSL,
+            is_64,
+        );
     }
     pub fn gen_orr_shifted_reg_instruction(
         &mut self,
@@ -75,12 +82,12 @@ impl ASMGenerator {
         rn: RegisterX,
         rm: RegisterX,
         imm6: u8,
-        shift: u8,
+        shift: Shift,
         is_64: bool,
     ) {
         let mut inst: u32 = 0x2a000000;
         inst |= (is_64 as u32) << 31;
-        inst |= ((shift & 0x2) as u32) << 22;
+        inst |= ((shift as u8 & 0x2) as u32) << 22;
         inst |= ((imm6 & 0x3f) as u32) << 10;
         inst |= (((rm as u8) & 0x1f) as u32) << 16;
         inst |= (((rn as u8) & 0x1f) as u32) << 5;
@@ -102,12 +109,12 @@ impl ASMGenerator {
         rn: RegisterX,
         rm: RegisterX,
         imm6: u8,
-        shift: u8,
+        shift: Shift,
         is_64: bool,
     ) {
         let mut inst: u32 = 0x0b000000;
         inst |= (is_64 as u32) << 31;
-        inst |= ((shift & 0x3) as u32) << 22;
+        inst |= ((shift as u8 & 0x3) as u32) << 22;
         inst |= ((imm6 & 0x3f) as u32) << 10;
         inst |= ((rm as u32 & 0x1f) as u32) << 16;
         inst |= ((rn as u32 & 0x1f) as u32) << 5;
@@ -137,12 +144,12 @@ impl ASMGenerator {
         rn: RegisterX,
         rm: RegisterX,
         imm6: u8,
-        shift: u8,
+        shift: Shift,
         is_64: bool,
     ) {
         let mut inst: u32 = 0x4b000000;
         inst |= (is_64 as u32) << 31;
-        inst |= ((shift & 0x3) as u32) << 22;
+        inst |= ((shift as u8 & 0x3) as u32) << 22;
         inst |= ((imm6 & 0x3f) as u32) << 10;
         inst |= ((rm as u8 & 0x1f) as u32) << 16;
         inst |= ((rn as u8 & 0x1f) as u32) << 5;
@@ -256,7 +263,16 @@ impl ASMGenerator {
     pub fn gen_cmp_imm_instruction(&mut self, rn: RegisterX, imm12: u16, shift: bool, is_64: bool) {
         self.gen_subs_imm_instruction(rn, RegisterX::XZR, imm12, shift, is_64);
     }
-
+    pub fn gen_cmp_shifted_reg_instruction(
+        &mut self,
+        rn: RegisterX,
+        rm: RegisterX,
+        imm6: u8,
+        shift: Shift,
+        is_64: bool,
+    ) {
+        self.gen_subs_shifted_reg_instruction(RegisterX::MovRegister, rn, rm, imm6, shift, is_64);
+    }
     pub fn gen_subs_imm_instruction(
         &mut self,
         rn: RegisterX,
@@ -269,6 +285,24 @@ impl ASMGenerator {
         inst |= (is_64 as u32) << 31;
         inst |= (sh as u32) << 22;
         inst |= ((imm12 & 0xfff) as u32) << 10;
+        inst |= ((rn as u8 & 0x1f) as u32) << 5;
+        inst |= (rd as u8 & 0x1f) as u32;
+        self.write32(inst);
+    }
+    pub fn gen_subs_shifted_reg_instruction(
+        &mut self,
+        rd: RegisterX,
+        rn: RegisterX,
+        rm: RegisterX,
+        imm6: u8,
+        shift: Shift,
+        is_64: bool,
+    ) {
+        let mut inst: u32 = 0x6b000000;
+        inst |= (is_64 as u32) << 31;
+        inst |= ((shift as u8 & 0x3) as u32) << 22;
+        inst |= ((imm6 & 0x3f) as u32) << 10;
+        inst |= ((rm as u8 & 0x1f) as u32) << 16;
         inst |= ((rn as u8 & 0x1f) as u32) << 5;
         inst |= (rd as u8 & 0x1f) as u32;
         self.write32(inst);
@@ -398,6 +432,12 @@ impl ASMGenerator {
         inst |= (rt as u8 & 0x1f) as u32;
         self.write32(inst);
     }
+    pub fn gen_Bcond_instruction(&mut self, cond: Cond, imm19: i32) {
+        let mut inst: u32 = 0x54000000;
+        inst |= (cond as u8 & 0xf) as u32;
+        inst |= ((imm19 & 0x7ffff) as u32) << 5;
+        self.write32(inst);
+    }
     /// compile an expression AST node into instructions, return 0 on success
     pub fn compile_expr(&mut self, node: ASTNode, stack_index: word) -> i32 {
         // Immediate integer
@@ -439,6 +479,10 @@ impl ASMGenerator {
             let cdr = AST_pair_cdr(node);
             return self.compile_call(car, cdr, stack_index);
         }
+        // Error
+        if AST_is_error(node) {
+            todo!()
+        }
         panic!("expected node type")
     }
 
@@ -455,6 +499,23 @@ impl ASMGenerator {
         self.gen_lsl_imm_instruction(RegisterX::X0, RegisterX::X0, K_BOOL_SHIFT as i32, true);
 
         // OR immediate tag bits to form the boolean immediate object
+        if let Some(imm) = BitmaskImmediate::try_from(K_BOOL_TAG as u64) {
+            self.gen_orr_imm_instruction(
+                RegisterX::X0,
+                RegisterX::X0,
+                imm.immr,
+                imm.imms,
+                imm.n != 0,
+                true,
+            );
+        } else {
+            panic!("Failed to encode value in compare_imm32");
+        }
+    }
+    fn compile_compare_reg(&mut self, rn: RegisterX, rm: RegisterX) {
+        self.gen_cmp_shifted_reg_instruction(rn, rm, 0, Shift::LSL, true);
+        self.gen_cset_instruction(RegisterX::X0, IVCond::LS, true);
+        self.gen_lsl_imm_instruction(RegisterX::X0, RegisterX::X0, K_BOOL_SHIFT as i32, true);
         if let Some(imm) = BitmaskImmediate::try_from(K_BOOL_TAG as u64) {
             self.gen_orr_imm_instruction(
                 RegisterX::X0,
@@ -631,7 +692,7 @@ impl ASMGenerator {
                     RegisterX::X0,
                     RegisterX::X1,
                     0,
-                    0,
+                    Shift::LSL,
                     true,
                 );
                 return 0;
@@ -665,9 +726,82 @@ impl ASMGenerator {
                     RegisterX::X0,
                     RegisterX::X1,
                     0,
-                    0,
+                    Shift::LSL,
                     true,
                 );
+                return 0;
+            } else if AST_symbol_matches(
+                callable,
+                std::ffi::CStr::from_bytes_with_nul(b"<\0").unwrap(),
+            ) {
+                self.compile_expr(operand2(args), stack_index);
+                self.gen_str_imm_instruction(
+                    RegisterX::X29,
+                    RegisterX::X0,
+                    stack_index as i16,
+                    true,
+                    false,
+                    true,
+                );
+                self.compile_expr(operand1(args), stack_index - K_WORD_SIZE);
+                self.gen_ldr_imm_instruction(
+                    RegisterX::X29,
+                    RegisterX::X1,
+                    -stack_index as i16,
+                    false,
+                    false,
+                    true,
+                );
+                self.compile_compare_reg(RegisterX::X0, RegisterX::X1);
+                return 0;
+            } else if AST_symbol_matches(
+                callable,
+                std::ffi::CStr::from_bytes_with_nul(b"=\0").unwrap(),
+            ) {
+                self.compile_expr(operand2(args), stack_index);
+                self.gen_str_imm_instruction(
+                    RegisterX::X29,
+                    RegisterX::X0,
+                    stack_index as i16,
+                    true,
+                    false,
+                    true,
+                );
+                self.compile_expr(operand1(args), stack_index - K_WORD_SIZE);
+                self.gen_ldr_imm_instruction(
+                    RegisterX::X29,
+                    RegisterX::X1,
+                    -stack_index as i16,
+                    false,
+                    false,
+                    true,
+                );
+                self.gen_cmp_shifted_reg_instruction(
+                    RegisterX::X0,
+                    RegisterX::X1,
+                    0,
+                    Shift::LSL,
+                    true,
+                );
+                self.gen_cset_instruction(RegisterX::X0, IVCond::EQ, true);
+                self.gen_lsl_imm_instruction(
+                    RegisterX::X0,
+                    RegisterX::X0,
+                    K_BOOL_SHIFT as i32,
+                    true,
+                );
+                if let Some(imm) = BitmaskImmediate::try_from(K_BOOL_TAG as u64) {
+                    self.gen_orr_imm_instruction(
+                        RegisterX::X0,
+                        RegisterX::X0,
+                        imm.immr,
+                        imm.imms,
+                        imm.n != 0,
+                        true,
+                    );
+                } else {
+                    panic!("Failed to encode value in compare_imm32");
+                }
                 return 0;
             }
         }
@@ -1004,5 +1138,55 @@ mod tests {
         setup!(generator);
         let return_val = generator.execute();
         assert_eq!(return_val, Object_encode_integer(17) as usize);
+    }
+    #[test]
+    fn compile_less_binary_function() {
+        let name_cstring = CString::new("<").unwrap();
+        let node = new_binary_call(
+            name_cstring.as_c_str(),
+            AST_new_integer(2),
+            AST_new_integer(3),
+        );
+        let mut generator = ASMGenerator::new();
+        generator.compile_function(node);
+        setup!(generator);
+        let return_val = generator.execute();
+        assert_eq!(return_val, Object_true() as usize);
+        let node = new_binary_call(
+            name_cstring.as_c_str(),
+            AST_new_integer(3),
+            AST_new_integer(2),
+        );
+        let mut generator = ASMGenerator::new();
+        generator.compile_function(node);
+        setup!(generator);
+        let return_val = generator.execute();
+        assert_eq!(return_val, Object_false() as usize);
+    }
+    #[test]
+    fn compile_equal_binary_function() {
+        let name_cstring = CString::new("=").unwrap();
+        let node = new_binary_call(
+            name_cstring.as_c_str(),
+            AST_new_integer(2),
+            AST_new_integer(2),
+        );
+        let mut generator = ASMGenerator::new();
+        generator.compile_function(node);
+        setup!(generator);
+        let return_val = generator.execute();
+        assert_eq!(return_val, Object_true() as usize);
+        let node = new_binary_call(
+            name_cstring.as_c_str(),
+            AST_new_integer(2),
+            AST_new_integer(3),
+        );
+        let mut generator = ASMGenerator::new();
+        generator.compile_function(node);
+        setup!(generator);
+        let return_val = generator.execute();
+        assert_eq!(return_val, Object_false() as usize);
+        use crate::dump::*;
+        write_executable_aarch64(&generator.get_instructions(), "./dump.o", "./dump");
     }
 }

@@ -12,3 +12,5 @@ uv.lock
 
 /target
 Cargo.lock
+dump
+dump.o

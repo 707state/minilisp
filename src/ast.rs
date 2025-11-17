@@ -86,6 +86,12 @@ pub fn AST_nil() -> ASTNode {
     Object_nil() as ASTNode
 }
 
+pub fn AST_is_error(node: ASTNode) -> bool {
+    (node as word) == Object_error()
+}
+pub fn AST_error() -> ASTNode {
+    Object_error() as ASTNode
+}
 // Pair representation (heap-allocated)
 #[repr(C)]
 pub struct Pair {

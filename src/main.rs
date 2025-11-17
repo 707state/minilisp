@@ -1,7 +1,9 @@
 mod ast;
 mod codegen;
 mod common;
+mod dump;
 mod object;
+mod parser;
 use crate::ast::*;
 use crate::codegen::*;
 use crate::object::*;

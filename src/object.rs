@@ -50,6 +50,9 @@ pub fn Object_false() -> word {
 pub fn Object_nil() -> word {
     0x2f
 }
+pub fn Object_error() -> word {
+    0x3f
+}
 
 /// Return the heap address part of a pointer (strip tag bits).
 pub fn Object_address(obj: usize) -> uword {
