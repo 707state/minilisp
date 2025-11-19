@@ -43,15 +43,15 @@ impl<'a> Parser<'a> {
     pub fn parse_expr(&mut self) -> ASTNode {
         self.skip_spaces();
         if self.eof() {
-            return AST_error();
+            return ast_error();
         }
 
         match self.peek() {
             Some(b'(') => self.parse_list(),
             Some(b'\'') => self.parse_char(),
-            Some(c) if c.is_ascii_digit() || c == b'-' => self.parse_integer(),
+            Some(c) if c.is_ascii_digit() => self.parse_integer(),
             Some(_) => self.parse_symbol(),
-            None => AST_error(),
+            None => ast_error(),
         }
     }
 
@@ -68,32 +68,32 @@ impl<'a> Parser<'a> {
                 break;
             }
             let expr = self.parse_expr();
-            if AST_is_error(expr) {
-                return AST_error();
+            if ast_is_error(expr) {
+                return ast_error();
             }
             items.push(expr);
             self.skip_spaces();
         }
 
         if self.peek() != Some(b')') {
-            return AST_error();
+            return ast_error();
         }
         self.bump(); // ')'
 
         // Arity rules
         if items.is_empty() {
             // () is NIL
-            return AST_nil();
+            return ast_nil();
         }
         if items.len() > 4 {
             // Only allow: f, f x, f x y, f x y z
-            return AST_error();
+            return ast_error();
         }
 
         // Turn Vec<ASTNode> into pairs
-        let mut acc = AST_nil();
+        let mut acc = ast_nil();
         for item in items.into_iter().rev() {
-            acc = AST_new_pair(item, acc);
+            acc = ast_new_pair(item, acc);
         }
         acc
     }
@@ -118,26 +118,26 @@ impl<'a> Parser<'a> {
         }
 
         if !has_digit {
-            return AST_error();
+            return ast_error();
         }
 
         let s = std::str::from_utf8(&self.src[start..self.pos]).unwrap();
         let value: i64 = match s.parse() {
             Ok(v) => v,
-            Err(_) => return AST_error(),
+            Err(_) => return ast_error(),
         };
 
-        AST_new_integer(value)
+        ast_new_integer(value)
     }
     /// Parse C-style character literal: 'a', '\n', '\\', '\'', '\x41'
     fn parse_char(&mut self) -> ASTNode {
         // Leading quote
         if self.bump() != Some(b'\'') {
-            return AST_error();
+            return ast_error();
         }
 
         let ch = match self.bump() {
-            None => return AST_error(),
+            None => return ast_error(),
             Some(b'\\') => {
                 // escape sequence
                 match self.bump() {
@@ -159,11 +159,11 @@ impl<'a> Parser<'a> {
                             .and_then(|s| u8::from_str_radix(s, 16).ok())
                         {
                             Some(v) => v,
-                            None => return AST_error(),
+                            None => return ast_error(),
                         }
                     }
 
-                    _ => return AST_error(), // unsupported escape
+                    _ => return ast_error(), // unsupported escape
                 }
             }
             Some(c) => c,
@@ -171,10 +171,10 @@ impl<'a> Parser<'a> {
 
         // Expect trailing quote
         if self.bump() != Some(b'\'') {
-            return AST_error();
+            return ast_error();
         }
 
-        AST_new_char(ch as i32)
+        ast_new_char(ch as i32)
     }
 
     /// Parse symbol: alpha or punctuation except () and numbers
@@ -192,35 +192,81 @@ impl<'a> Parser<'a> {
         let name = &self.src[start..self.pos];
 
         if name.is_empty() {
-            return AST_error();
+            return ast_error();
         }
 
         let cstr = CString::new(name).unwrap();
-        AST_new_symbol(&cstr)
+        ast_new_symbol(&cstr)
     }
 }
 #[cfg(test)]
 mod tests {
-    use crate::parser::*;
+    use crate::{
+        codegen::ASMGenerator,
+        object::{object_encode_char, object_encode_integer},
+        parser::*,
+    };
 
     #[test]
     fn parsing_simple_tuple() {
         let mut p = Parser::new("(add1 2)");
         let ast = p.parse_expr();
-        assert!(AST_is_pair(ast));
+        assert!(ast_is_pair(ast));
+        let mut generator = ASMGenerator::new();
+        generator.compile_function(ast);
+        let _ = generator.init();
+        generator.make_executable();
+        let return_val = generator.execute();
+        assert_eq!(return_val, object_encode_integer(3) as usize);
+    }
+    #[test]
+    fn parsing_add_symbol() {
+        let mut p = Parser::new("(+ 1 2)");
+        let ast = p.parse_expr();
+        assert!(ast_is_pair(ast));
+        assert!(ast_is_symbol(operand1(ast)));
+        let mut generator = ASMGenerator::new();
+        generator.compile_function(ast);
+        let _ = generator.init();
+        generator.make_executable();
+        let return_val = generator.execute();
+        assert_eq!(return_val, object_encode_integer(3) as usize);
+    }
+    #[test]
+    fn parsing_sub_symbol() {
+        let mut p = Parser::new("(- 5 2)");
+        let ast = p.parse_expr();
+        assert!(ast_is_pair(ast));
+        assert!(ast_is_symbol(operand1(ast)));
+        let mut generator = ASMGenerator::new();
+        generator.compile_function(ast);
+        let _ = generator.init();
+        generator.make_executable();
+        let return_val = generator.execute();
+        assert_eq!(return_val, object_encode_integer(3) as usize);
     }
     #[test]
     fn parsing_simple_char() {
-        assert_eq!(AST_get_char(Parser::new("'a'").parse_expr()), b'a' as i8);
-        assert_eq!(AST_get_char(Parser::new("'\\n'").parse_expr()), b'\n' as i8);
-        assert_eq!(AST_get_char(Parser::new("'\\''").parse_expr()), b'\'' as i8);
+        assert_eq!(ast_get_char(Parser::new("'a'").parse_expr()), 'a');
+        assert_eq!(ast_get_char(Parser::new("'\\n'").parse_expr()), '\n');
+        assert_eq!(ast_get_char(Parser::new("'\\''").parse_expr()), '\'');
+        assert_eq!(ast_get_char(Parser::new("'\\\\'").parse_expr()), '\\');
         assert_eq!(
-            AST_get_char(Parser::new("'\\\\'").parse_expr()),
-            b'\\' as i8
+            ast_get_char(Parser::new("'\\x41'").parse_expr()),
+            0x41 as char
         );
-        assert_eq!(
-            AST_get_char(Parser::new("'\\x41'").parse_expr()),
-            0x41 as i8
-        );
+    }
+    #[test]
+    fn parsing_char_to_integer() {
+        let mut p = Parser::new("(integer->char 97)");
+        let ast = p.parse_expr();
+        assert!(ast_is_pair(ast));
+        assert!(ast_is_symbol(operand1(ast)));
+        let mut generator = ASMGenerator::new();
+        generator.compile_function(ast);
+        let _ = generator.init();
+        generator.make_executable();
+        let return_val = generator.execute();
+        assert_eq!(return_val, object_encode_char('a' as i32) as usize);
     }
 }

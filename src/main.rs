@@ -1,29 +1,23 @@
-mod ast;
-mod codegen;
-mod common;
-mod dump;
-mod object;
-mod parser;
-use crate::ast::*;
-use crate::codegen::*;
-use crate::object::*;
+use minilisp::ast::*;
+use minilisp::codegen::*;
+use minilisp::object::*;
 
 fn main() {
     let mut generator = ASMGenerator::new();
 
     let value = 'a' as i32;
-    let node = AST_new_char(value);
+    let node = ast_new_char(value);
 
     generator.compile_function(node);
-    generator.init();
+    let _ = generator.init();
 
     let result = generator.make_executable();
     assert_eq!(result, 0, "mprotect failed");
 
     let return_code = generator.execute();
     assert_eq!(
-        'a' as i8,
-        Object_decode_char(return_code as i64),
+        'a' as u8,
+        object_decode_char(return_code as i64),
         "the assembly was wrong"
     );
 
@@ -32,6 +26,6 @@ fn main() {
 
     println!(
         "Program returned '{}'",
-        Object_decode_char(return_code as i64) as u8 as char
+        object_decode_char(return_code as i64) as u8 as char
     );
 }

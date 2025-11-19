@@ -1,4 +1,4 @@
-use object::{macho, write::*};
+use object::write::*;
 use std::fs::File;
 use std::io::Write;
 use std::process::Command;
@@ -34,10 +34,12 @@ pub fn write_executable_aarch64(instructions: &[u32], obj_path: &str, exe_path: 
     let ld_status = Command::new("ld")
         .args([
             "-m",
-            "aarch64linux",
+            "aarch64elf",
             obj_path,
             "-o",
             exe_path,
+            "-L",
+            "/lib/aarch64-linux-gnu/",
             "-lc", // 链接 libc
             "--dynamic-linker",
             "/lib/ld-linux-aarch64.so.1",
@@ -101,7 +103,7 @@ fn write_elf(path: &str, instructions: &[u32]) {
     obj.append_section_data(section_id, &text_bytes, 4);
 
     let main_symbol = obj.add_symbol(Symbol {
-        name: b"main".to_vec(), // ELF entry symbol
+        name: b"start".to_vec(), // ELF entry symbol
         value: 0,
         size: text_bytes.len() as u64,
         kind: SymbolKind::Text,

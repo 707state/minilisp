@@ -6,3 +6,7 @@ edition = "2024"
 [dependencies]
 libc = "0.2.177"
 object = { version = "0.37.3", features = ["write", "write_core", "write_std"] }
+
+[[bin]]
+name = "repl"
+path = "src/repl.rs"

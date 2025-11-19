@@ -1,11 +1,11 @@
 // Translated from common.hpp
 
-pub type word = i64;
-pub type uword = u64;
+pub type Word = i64;
+pub type Uword = u64;
 
-pub const K_BITS_PER_BYTE: word = 8;
-pub const K_WORD_SIZE: word = core::mem::size_of::<word>() as word;
-pub const K_BITS_PER_WORD: word = K_WORD_SIZE * K_BITS_PER_BYTE;
+pub const K_BITS_PER_BYTE: Word = 8;
+pub const K_WORD_SIZE: Word = core::mem::size_of::<Word>() as Word;
+pub const K_BITS_PER_WORD: Word = K_WORD_SIZE * K_BITS_PER_BYTE;
 
 // tags
 pub const K_INTEGER_TAG: u32 = 0x0;
@@ -18,21 +18,21 @@ pub const K_INTEGER_TAG_MASK: u32 = 0x3; // 0b11
 pub const K_IMMEDIATE_TAG_MASK: u32 = 0x1F;
 pub const K_BOOL_MASK: u32 = 0x1F;
 // Heap pointer tagging
-pub const K_HEAP_TAG_MASK: uword = 0xF;
+pub const K_HEAP_TAG_MASK: Uword = 0xF;
 // Symbol tagging
 pub const K_SYMBOL_TAG: u32 = 0x7;
 
 pub const K_INTEGER_SHIFT: u32 = 2;
 pub const K_INTEGER_BITS: usize = (K_BITS_PER_WORD as usize) - (K_INTEGER_SHIFT as usize);
-pub const K_INTEGER_MAX: word = ((1i128 << (K_INTEGER_BITS as i128 - 1)) - 1) as word;
-pub const K_INTEGER_MIN: word = (-(1i128 << (K_INTEGER_BITS as i128 - 1))) as word;
+pub const K_INTEGER_MAX: Word = ((1i128 << (K_INTEGER_BITS as i128 - 1)) - 1) as Word;
+pub const K_INTEGER_MIN: Word = (-(1i128 << (K_INTEGER_BITS as i128 - 1))) as Word;
 
 pub const K_CHAR_MASK: u32 = 0xFF;
 pub const K_CHAR_SHIFT: u32 = 8;
 
 pub const K_BOOL_SHIFT: u32 = 5;
 
-pub const K_HEAP_PTR_MASK: uword = !K_HEAP_TAG_MASK;
+pub const K_HEAP_PTR_MASK: Uword = !K_HEAP_TAG_MASK;
 /*
  * This part of code is copied from Ruby YJIT
  */
@@ -101,6 +101,36 @@ impl BitmaskImmediate {
     }
 }
 
+fn calc_bcond_imm19(pc_current: usize, target: usize) -> (isize, u32) {
+    let offset_bytes = target as isize - pc_current as isize;
+    let imm19: isize = offset_bytes / 2;
+    let imm19_bin: u32 = if imm19 < 0 {
+        ((1 << 20) as isize + imm19) as u32
+    } else {
+        imm19 as u32
+    };
+    println!("PC: 0x{:X}, Target: 0x{:X}", pc_current, target);
+    println!("Offset bytes: {} -> imm19: {}", offset_bytes, imm19);
+    println!("imm19 19-bit binary (hex) = 0x{:X}", imm19_bin);
+    (imm19, imm19_bin)
+}
+
+fn calc_b_imm26(pc_current: usize, target: usize) -> (isize, u32) {
+    let offset_bytes = target as isize - pc_current as isize;
+
+    let imm26: isize = offset_bytes / 4;
+    let mut imm26_bin: u32 = if imm26 < 0 {
+        ((1 << 28) as isize + imm26) as u32
+    } else {
+        imm26 as u32
+    };
+    imm26_bin &= 0x3ffffff;
+    println!("PC: 0x{:X}, Target: 0x{:X}", pc_current, target);
+    println!("Offset bytes: {} -> imm26: {}", offset_bytes, imm26);
+    println!("imm26 26-bit binary (hex) = 0x{:X}", imm26_bin);
+
+    (imm26, imm26_bin)
+}
 // Register enum
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -245,5 +275,23 @@ mod tests {
             // 检查必须可编码（和原来的 CHECK_EQ(ok, true) 对应）
             assert!(result.is_some(), "Value 0x{:016x} is not encodable", t.v);
         }
+    }
+    #[test]
+    fn calc_bcond_imm19_test() {
+        let (imm, imm19_bin) = calc_bcond_imm19(0x18, 0x88);
+        assert_eq!(imm, 56);
+        assert_eq!(imm19_bin, 0x38);
+        let (imm, imm19_bin) = calc_bcond_imm19(0x2c, 0x08);
+        assert_eq!(imm, -18);
+        assert_eq!(imm19_bin, 0xfffee);
+    }
+    #[test]
+    fn calc_b_imm26_test() {
+        let (imm, imm26_bin) = calc_b_imm26(0x70, 0x08);
+        assert_eq!(imm, -26);
+        assert_eq!(imm26_bin, 0x3ffffe6);
+        let (imm, imm26_bin) = calc_b_imm26(0x74, 0x78);
+        assert_eq!(imm, 1);
+        assert_eq!(imm26_bin, 0x1);
     }
 }

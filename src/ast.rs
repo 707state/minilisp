@@ -17,7 +17,7 @@ pub type ASTNode = usize;
 
 // Utility functions
 
-pub fn AST_heap_alloc(tag: uword, size: uword) -> ASTNode {
+pub fn ast_heap_alloc(tag: Uword, size: Uword) -> ASTNode {
     {
         let size = size as usize;
         // calloc(size, 1) returns a pointer. We store its address ORed with tag (like the C code).
@@ -28,69 +28,69 @@ pub fn AST_heap_alloc(tag: uword, size: uword) -> ASTNode {
     }
 }
 
-pub fn AST_is_heap_object(node: ASTNode) -> bool {
-    let tag = (node & (K_HEAP_TAG_MASK as usize)) as uword;
+pub fn ast_is_heap_object(node: ASTNode) -> bool {
+    let tag = (node & (K_HEAP_TAG_MASK as usize)) as Uword;
     // (tag & kIntegerTagMask) > 0 && (tag & kImmediateTagMask) != 0x7;
     ((tag as u32) & K_INTEGER_TAG_MASK) > 0 && ((tag as u32) & K_IMMEDIATE_TAG_MASK) != 0x7
 }
 
 // Integer
 
-pub fn AST_new_integer(value: word) -> ASTNode {
-    Object_encode_integer(value) as ASTNode
+pub fn ast_new_integer(value: Word) -> ASTNode {
+    object_encode_integer(value) as ASTNode
 }
 
-pub fn AST_is_integer(node: ASTNode) -> bool {
-    ((node as word) & (K_INTEGER_TAG_MASK as word)) == (K_INTEGER_TAG as word)
+pub fn ast_is_integer(node: ASTNode) -> bool {
+    ((node as Word) & (K_INTEGER_TAG_MASK as Word)) == (K_INTEGER_TAG as Word)
 }
 
-pub fn AST_get_integer(node: ASTNode) -> word {
-    (node as word) >> (K_INTEGER_SHIFT as word)
+pub fn ast_get_integer(node: ASTNode) -> Word {
+    (node as Word) >> (K_INTEGER_SHIFT as Word)
 }
 
 // Character
 
-pub fn AST_is_char(node: ASTNode) -> bool {
-    ((node as word) & (K_IMMEDIATE_TAG_MASK as word)) == (K_CHAR_TAG as word)
+pub fn ast_is_char(node: ASTNode) -> bool {
+    ((node as Word) & (K_IMMEDIATE_TAG_MASK as Word)) == (K_CHAR_TAG as Word)
 }
 
-pub fn AST_get_char(node: ASTNode) -> i8 {
-    Object_decode_char(node as word)
+pub fn ast_get_char(node: ASTNode) -> char {
+    object_decode_char(node as Word) as char
 }
 
-pub fn AST_new_char(value: i32) -> ASTNode {
-    Object_encode_char(value) as ASTNode
+pub fn ast_new_char(value: i32) -> ASTNode {
+    object_encode_char(value) as ASTNode
 }
 
 // Bool
 
-pub fn AST_is_bool(node: ASTNode) -> bool {
-    ((node as word) & (K_IMMEDIATE_TAG_MASK as word)) == (K_BOOL_TAG as word)
+pub fn ast_is_bool(node: ASTNode) -> bool {
+    ((node as Word) & (K_IMMEDIATE_TAG_MASK as Word)) == (K_BOOL_TAG as Word)
 }
 
-pub fn AST_get_bool(node: ASTNode) -> bool {
-    Object_decode_bool(node as word)
+pub fn ast_get_bool(node: ASTNode) -> bool {
+    object_decode_bool(node as Word)
 }
 
-pub fn AST_new_bool(value: bool) -> ASTNode {
-    Object_encode_bool(value) as ASTNode
+pub fn ast_new_bool(value: bool) -> ASTNode {
+    object_encode_bool(value) as ASTNode
 }
 
 // Nil
 
-pub fn AST_is_nil(node: ASTNode) -> bool {
-    (node as word) == Object_nil()
+pub fn ast_is_nil(node: ASTNode) -> bool {
+    (node as Word) == object_nil()
 }
 
-pub fn AST_nil() -> ASTNode {
-    Object_nil() as ASTNode
+pub fn ast_nil() -> ASTNode {
+    object_nil() as ASTNode
 }
 
-pub fn AST_is_error(node: ASTNode) -> bool {
-    (node as word) == Object_error()
+pub fn ast_is_error(node: ASTNode) -> bool {
+    (node as Word) == object_error()
 }
-pub fn AST_error() -> ASTNode {
-    Object_error() as ASTNode
+pub fn ast_error() -> ASTNode {
+    object_error() as ASTNode
 }
 // Pair representation (heap-allocated)
 #[repr(C)]
@@ -101,52 +101,52 @@ pub struct Pair {
 
 pub fn AST_pair_set_car(node: ASTNode, car: ASTNode) {
     unsafe {
-        let p = AST_as_pair(node);
+        let p = ast_as_pair(node);
         (*p).car = car;
     }
 }
 
-pub fn AST_pair_set_cdr(node: ASTNode, cdr: ASTNode) {
+pub fn ast_pair_set_cdr(node: ASTNode, cdr: ASTNode) {
     unsafe {
-        let p = AST_as_pair(node);
+        let p = ast_as_pair(node);
         (*p).cdr = cdr;
     }
 }
 
-pub fn AST_new_pair(car: ASTNode, cdr: ASTNode) -> ASTNode {
-    let node = AST_heap_alloc(K_PAIR_TAG as uword, core::mem::size_of::<Pair>() as uword);
+pub fn ast_new_pair(car: ASTNode, cdr: ASTNode) -> ASTNode {
+    let node = ast_heap_alloc(K_PAIR_TAG as Uword, core::mem::size_of::<Pair>() as Uword);
     AST_pair_set_car(node, car);
-    AST_pair_set_cdr(node, cdr);
+    ast_pair_set_cdr(node, cdr);
     node
 }
 
-pub fn AST_is_pair(node: ASTNode) -> bool {
-    ((node as uword) & (K_HEAP_TAG_MASK as uword)) == (K_PAIR_TAG as uword)
+pub fn ast_is_pair(node: ASTNode) -> bool {
+    ((node as Uword) & (K_HEAP_TAG_MASK as Uword)) == (K_PAIR_TAG as Uword)
 }
 
-pub unsafe fn AST_as_pair(node: ASTNode) -> *mut Pair {
-    assert!(AST_is_pair(node));
-    Object_address(node) as *mut Pair
+pub unsafe fn ast_as_pair(node: ASTNode) -> *mut Pair {
+    assert!(ast_is_pair(node));
+    object_address(node) as *mut Pair
 }
 
-pub fn AST_pair_car(node: ASTNode) -> ASTNode {
-    unsafe { (*AST_as_pair(node)).car }
+pub fn ast_pair_car(node: ASTNode) -> ASTNode {
+    unsafe { (*ast_as_pair(node)).car }
 }
 
-pub fn AST_pair_cdr(node: ASTNode) -> ASTNode {
-    unsafe { (*AST_as_pair(node)).cdr }
+pub fn ast_pair_cdr(node: ASTNode) -> ASTNode {
+    unsafe { (*ast_as_pair(node)).cdr }
 }
 
-pub fn AST_heap_free(node: ASTNode) {
-    if !AST_is_heap_object(node) {
+pub fn ast_heap_free(node: ASTNode) {
+    if !ast_is_heap_object(node) {
         return;
     }
-    if AST_is_pair(node) {
-        AST_heap_free(AST_pair_car(node));
-        AST_heap_free(AST_pair_cdr(node));
+    if ast_is_pair(node) {
+        ast_heap_free(ast_pair_car(node));
+        ast_heap_free(ast_pair_cdr(node));
     }
     unsafe {
-        free(Object_address(node) as *mut c_void);
+        free(object_address(node) as *mut c_void);
     }
 }
 
@@ -154,44 +154,44 @@ pub fn AST_heap_free(node: ASTNode) {
 
 #[repr(C)]
 pub struct Symbol {
-    pub length: word,
+    pub length: Word,
     // flexible array member - we allocate extra bytes after this struct
 }
 
-pub fn AST_as_symbol(node: ASTNode) -> *mut Symbol {
-    assert!(AST_is_symbol(node));
-    unsafe { Object_address(node) as *mut Symbol }
+pub fn ast_as_symbol(node: ASTNode) -> *mut Symbol {
+    assert!(ast_is_symbol(node));
+    object_address(node) as *mut Symbol
 }
 
-pub fn AST_new_symbol(r: &CStr) -> ASTNode {
-    let data_len = unsafe { r.to_bytes_with_nul().len() } as uword;
-    let node = AST_heap_alloc(
-        K_SYMBOL_TAG as uword,
-        (core::mem::size_of::<Symbol>() as uword) + data_len,
+pub fn ast_new_symbol(r: &CStr) -> ASTNode {
+    let data_len = r.to_bytes_with_nul().len() as Uword;
+    let node = ast_heap_alloc(
+        K_SYMBOL_TAG as Uword,
+        (core::mem::size_of::<Symbol>() as Uword) + data_len,
     );
     unsafe {
-        let s = AST_as_symbol(node);
-        (*s).length = data_len as word;
-        let dest = (Object_address(node) as *mut u8).add(core::mem::size_of::<Symbol>());
+        let s = ast_as_symbol(node);
+        (*s).length = data_len as Word;
+        let dest = (object_address(node) as *mut u8).add(core::mem::size_of::<Symbol>());
         ptr::copy_nonoverlapping(r.as_ptr() as *const u8, dest, data_len as usize);
     }
     node
 }
 
-pub fn AST_is_symbol(node: ASTNode) -> bool {
-    ((node as uword) & (K_HEAP_TAG_MASK as uword)) == (K_SYMBOL_TAG as uword)
+pub fn ast_is_symbol(node: ASTNode) -> bool {
+    ((node as Uword) & (K_HEAP_TAG_MASK as Uword)) == (K_SYMBOL_TAG as Uword)
 }
 
-pub fn AST_symbol_cstr(node: ASTNode) -> *const c_char {
+pub fn ast_symbol_cstr(node: ASTNode) -> *const c_char {
     unsafe {
-        let s = AST_as_symbol(node);
-        (Object_address(node) as *const u8).add(core::mem::size_of::<Symbol>()) as *const c_char
+        let s = ast_as_symbol(node);
+        (object_address(node) as *const u8).add(core::mem::size_of::<Symbol>()) as *const c_char
     }
 }
 
-pub fn AST_symbol_matches(node: ASTNode, cstr: &CStr) -> bool {
+pub fn ast_symbol_matches(node: ASTNode, cstr: &CStr) -> bool {
     unsafe {
-        let ptr = AST_symbol_cstr(node);
+        let ptr = ast_symbol_cstr(node);
         CStr::from_ptr(ptr) == cstr
     }
 }
@@ -199,27 +199,27 @@ pub fn AST_symbol_matches(node: ASTNode, cstr: &CStr) -> bool {
 // List helpers
 
 pub fn list1(item0: ASTNode) -> ASTNode {
-    AST_new_pair(item0, AST_nil())
+    ast_new_pair(item0, ast_nil())
 }
 
 pub fn list2(item0: ASTNode, item1: ASTNode) -> ASTNode {
-    AST_new_pair(item0, list1(item1))
+    ast_new_pair(item0, list1(item1))
 }
 pub fn list3(item0: ASTNode, item1: ASTNode, item2: ASTNode) -> ASTNode {
-    AST_new_pair(item0, list2(item1, item2))
+    ast_new_pair(item0, list2(item1, item2))
 }
 
 pub fn new_unary_call(name: &CStr, arg: ASTNode) -> ASTNode {
-    list2(AST_new_symbol(name), arg)
+    list2(ast_new_symbol(name), arg)
 }
 pub fn new_binary_call(name: &CStr, arg0: ASTNode, arg1: ASTNode) -> ASTNode {
-    list3(AST_new_symbol(name), arg0, arg1)
+    list3(ast_new_symbol(name), arg0, arg1)
 }
 
 pub fn operand1(args: ASTNode) -> ASTNode {
-    AST_pair_car(args)
+    ast_pair_car(args)
 }
 
 pub fn operand2(args: ASTNode) -> ASTNode {
-    AST_pair_car(AST_pair_cdr(args))
+    ast_pair_car(ast_pair_cdr(args))
 }
