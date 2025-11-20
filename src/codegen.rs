@@ -35,15 +35,6 @@ impl ASMGenerator {
         self.new_instruction();
     }
 
-    fn write8(&mut self, value: u8) {
-        assert!(self.cur_instr_pos < 4);
-        self.cur_instruction |= (value as u32) << (self.cur_instr_pos * 8);
-        self.cur_instr_pos += 1;
-        if self.cur_instr_pos == 4 {
-            self.emit_to_memory();
-        }
-    }
-
     fn write32(&mut self, instruction: u32) {
         if self.cur_instr_pos > 0 {
             self.emit_to_memory();
@@ -432,10 +423,15 @@ impl ASMGenerator {
         inst |= (rt as u8 & 0x1f) as u32;
         self.write32(inst);
     }
-    pub fn gen_Bcond_instruction(&mut self, cond: Cond, imm19: i32) {
+    pub fn gen_Bcond_instruction(&mut self, cond: Cond, imm19: u32) {
         let mut inst: u32 = 0x54000000;
         inst |= (cond as u8 & 0xf) as u32;
         inst |= ((imm19 & 0x7ffff) as u32) << 5;
+        self.write32(inst);
+    }
+    pub fn gen_bl_instruction(&mut self, imm26: u32) {
+        let mut inst: u32 = 0x94000000;
+        inst |= (imm26 & 0x3FFFFFF);
         self.write32(inst);
     }
     pub fn gen_svc_instruction(&mut self, imm16: u16) {
@@ -445,32 +441,23 @@ impl ASMGenerator {
     }
     /// compile an expression AST node into instructions, return 0 on success
     pub fn compile_expr(&mut self, node: ASTNode, stack_index: Word) -> i32 {
-        // Immediate integer
         if ast_is_integer(node) {
-            // node is a tagged immediate already, so move whole tagged value into X0
-            // our gen_mov_imm_instruction takes a 16-bit immediate fragment; to be consistent
-            // with the original simple translation we pass the low 16 bits here.
-            // (Real assembler emission may need multiple movz/orr sequences; keep this behavior
-            // consistent with the earlier translation.)
             let tagged = node as u64;
             self.gen_mov_imm_instruction(RegisterX::X0, (tagged & 0xffff) as u16, 0, true);
             return 0;
         }
-
         // Character immediate
         if ast_is_char(node) {
             let tagged = node as u64;
             self.gen_mov_imm_instruction(RegisterX::X0, (tagged & 0xffff) as u16, 0, true);
             return 0;
         }
-
         // Boolean immediate
         if ast_is_bool(node) {
             let tagged = node as u64;
             self.gen_mov_imm_instruction(RegisterX::X0, (tagged & 0xffff) as u16, 0, true);
             return 0;
         }
-
         // Nil
         if ast_is_nil(node) {
             let nil_tagged = object_nil() as u64;
