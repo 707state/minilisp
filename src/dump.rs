@@ -119,3 +119,35 @@ fn write_elf(path: &str, instructions: &[u32]) {
     let mut file = File::create(path).unwrap();
     file.write_all(&bytes).unwrap();
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{error::Error, fs};
+
+    use object::{
+        LittleEndian,
+        macho::{self, N_EXT},
+        read::macho::{MachHeader, Nlist},
+    };
+
+    #[test]
+    fn test_object_read() -> Result<(), Box<dyn Error>> {
+        let data = fs::read("/Users/jask/test/learn_assembly/dump.o")?;
+        let header = macho::MachHeader64::<LittleEndian>::parse(&*data, 0)?;
+        let endian = header.endian()?;
+        let mut commands = header.load_commands(endian, &*data, 0)?;
+        while let Some(command) = commands.next()? {
+            if let Some(symtab_command) = command.symtab()? {
+                let symbols =
+                    symtab_command.symbols::<macho::MachHeader64<_>, _>(endian, &*data)?;
+                for symbol in symbols.iter() {
+                    if symbol.n_type & N_EXT != 0 {
+                        let name = symbol.name(endian, symbols.strings())?;
+                        println!("{}", String::from_utf8_lossy(name));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+}

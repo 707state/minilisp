@@ -2,15 +2,19 @@ from capstone import *
 
 if __name__ == "__main__":
     hex_instructions = [
-        "a9bf7bfd",
-        "aa1f03fd",
-        "d2800280",
-        "f81f8fa0",
-        "d2800400",
-        "f84087a1",
-        "8b010000",
-        "a8c17bfd",
-        "d65f03c0",
+    "a9bf7bfd",
+    "910003fd",
+    "d2800180",
+    "f81f8fa0",
+    "d2800100",
+    "f84087a1",
+    "8b010000",
+    "f81f8fa0",
+    "d2800080",
+    "f84087a1",
+    "8b010000",
+    "a8c17bfd",
+    "d65f03c0",
     ]
 
     # 转换成 bytes，小端序

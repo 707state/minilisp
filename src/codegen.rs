@@ -1,6 +1,7 @@
 use crate::ast::*;
 use crate::common::*;
 use crate::object::*;
+use std::collections::HashMap;
 use std::os::raw::c_void;
 use std::ptr;
 
@@ -12,6 +13,10 @@ pub struct ASMGenerator {
     cur_instruction: u32,
     cur_instr_pos: u8,
     instructions: Vec<u32>,
+    // fixup table
+    label_offset: HashMap<String, u32>,
+    // bl call to label
+    label_call: HashMap<u32, String>,
     memory: *mut c_void,
 }
 
@@ -21,6 +26,8 @@ impl ASMGenerator {
             cur_instruction: 0,
             cur_instr_pos: 0,
             instructions: Vec::new(),
+            label_offset: HashMap::new(),
+            label_call: HashMap::new(),
             memory: ptr::null_mut(),
         }
     }
@@ -431,7 +438,7 @@ impl ASMGenerator {
     }
     pub fn gen_bl_instruction(&mut self, imm26: u32) {
         let mut inst: u32 = 0x94000000;
-        inst |= (imm26 & 0x3FFFFFF);
+        inst |= imm26 & 0x3FFFFFF;
         self.write32(inst);
     }
     pub fn gen_svc_instruction(&mut self, imm16: u16) {

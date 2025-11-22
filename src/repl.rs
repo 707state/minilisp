@@ -33,5 +33,6 @@ fn main() {
         } else {
             println!("Type of return value not supported to print currently!");
         }
+        generator.print_instructions();
     }
 }

@@ -222,6 +222,7 @@ pub enum Shift {
     ROR = 3,
 }
 pub const RESERVED: Shift = Shift::ROR;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -293,5 +294,10 @@ mod tests {
         let (imm, imm26_bin) = calc_b_imm26(0x74, 0x78);
         assert_eq!(imm, 1);
         assert_eq!(imm26_bin, 0x1);
+    }
+    #[test]
+    fn calc_bl_imm26_test() {
+        let (_, imm26_bin) = calc_bcond_imm19(0x2c, 0);
+        assert_eq!(imm26_bin, 0xfffea);
     }
 }
