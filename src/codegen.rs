@@ -2,29 +2,39 @@ use crate::ast::*;
 use crate::common::*;
 use crate::object::*;
 use std::collections::HashMap;
+use std::hash::Hash;
 use std::os::raw::c_void;
 use std::ptr;
 
+use capstone::{Capstone, arch, arch::BuildsCapstone};
 use libc::{
     MAP_ANON, MAP_FAILED, MAP_PRIVATE, PROT_EXEC, PROT_READ, PROT_WRITE, mmap, mprotect, munmap,
 };
 
+pub trait CodeSink {
+    fn emit(&mut self);
+}
+
 pub struct ASMGenerator {
     cur_instruction: u32,
-    cur_instr_pos: u8,
     instructions: Vec<u32>,
-    // fixup table
+    memory: *mut c_void,
+    // WARN: 11/22/25, Currently I don't consider these stuff usable except main function.
+    // fixup table, this table contains label and it's current offset. When emitting to object file, this hashmap needs to be adjusted to proper index.
     label_offset: HashMap<String, u32>,
     // bl call to label
     label_call: HashMap<u32, String>,
-    memory: *mut c_void,
 }
-
+impl CodeSink for ASMGenerator {
+    fn emit(&mut self) {
+        self.instructions.push(self.cur_instruction);
+        self.new_instruction();
+    }
+}
 impl ASMGenerator {
     pub fn new() -> Self {
         Self {
             cur_instruction: 0,
-            cur_instr_pos: 0,
             instructions: Vec::new(),
             label_offset: HashMap::new(),
             label_call: HashMap::new(),
@@ -34,25 +44,28 @@ impl ASMGenerator {
 
     fn new_instruction(&mut self) {
         self.cur_instruction = 0;
-        self.cur_instr_pos = 0;
     }
-
-    fn emit_to_memory(&mut self) {
-        self.instructions.push(self.cur_instruction);
-        self.new_instruction();
+    pub fn adjust_offset(&mut self, prepend_index_size: u32) {
+        // adjust each label_offset
+        self.label_offset
+            .values_mut()
+            .for_each(|offset| *offset += prepend_index_size);
+        // generate a new label_call to replace the previous one since we need to modify the key.
+        self.label_call = self
+            .label_call
+            .iter()
+            .map(|(old_idx, label)| (old_idx + prepend_index_size, label.clone()))
+            .collect();
     }
 
     fn write32(&mut self, instruction: u32) {
-        if self.cur_instr_pos > 0 {
-            self.emit_to_memory();
-        }
         self.cur_instruction = instruction;
-        self.emit_to_memory();
+        self.emit();
     }
 
     // movz
     pub fn gen_movz_instruction(&mut self, rd: RegisterX, imm: u16, hw: u8, is_64: bool) {
-        let mut inst: u32 = 0x52800000;
+        let mut inst: u32 = MOVZ;
         inst |= (is_64 as u32) << 31;
         inst |= ((hw & 0x3) as u32) << 21;
         inst |= (imm as u32) << 5;
@@ -83,7 +96,7 @@ impl ASMGenerator {
         shift: Shift,
         is_64: bool,
     ) {
-        let mut inst: u32 = 0x2a000000;
+        let mut inst: u32 = ORR_SHIFTED_REG;
         inst |= (is_64 as u32) << 31;
         inst |= ((shift as u8 & 0x2) as u32) << 22;
         inst |= ((imm6 & 0x3f) as u32) << 10;
@@ -94,7 +107,7 @@ impl ASMGenerator {
     }
 
     pub fn gen_ret_instruction(&mut self, reg: RegisterX) {
-        let mut inst: u32 = 0xd65f0000;
+        let mut inst: u32 = RET;
         inst |= ((reg as u8 & 0x1f) as u32) << 5;
         self.write32(inst);
     }
@@ -110,7 +123,7 @@ impl ASMGenerator {
         shift: Shift,
         is_64: bool,
     ) {
-        let mut inst: u32 = 0x0b000000;
+        let mut inst: u32 = ADD_SHIFTED_REG;
         inst |= (is_64 as u32) << 31;
         inst |= ((shift as u8 & 0x3) as u32) << 22;
         inst |= ((imm6 & 0x3f) as u32) << 10;
@@ -127,7 +140,7 @@ impl ASMGenerator {
         shift: bool,
         is_64: bool,
     ) {
-        let mut inst: u32 = 0x11000000;
+        let mut inst: u32 = ADD_IMM;
         inst |= (is_64 as u32) << 31;
         inst |= (shift as u32) << 22;
         inst |= ((imm12 & 0xfff) as u32) << 10;
@@ -145,7 +158,7 @@ impl ASMGenerator {
         shift: Shift,
         is_64: bool,
     ) {
-        let mut inst: u32 = 0x4b000000;
+        let mut inst: u32 = SUB_SHIFTED_REG;
         inst |= (is_64 as u32) << 31;
         inst |= ((shift as u8 & 0x3) as u32) << 22;
         inst |= ((imm6 & 0x3f) as u32) << 10;
@@ -163,7 +176,7 @@ impl ASMGenerator {
         shift: bool,
         is_64: bool,
     ) {
-        let mut inst: u32 = 0x51000000;
+        let mut inst: u32 = SUB_IMM;
         inst |= (is_64 as u32) << 31;
         inst |= (shift as u32) << 22;
         inst |= ((imm12 & 0xfff) as u32) << 10;
@@ -181,7 +194,7 @@ impl ASMGenerator {
         n: bool,
         is_64: bool,
     ) {
-        let mut inst: u32 = 0x53000000;
+        let mut inst: u32 = UBFM;
         inst |= (is_64 as u32) << 31;
         inst |= (n as u32) << 22;
         inst |= ((immr & 0x3f) as u32) << 16;
@@ -229,7 +242,7 @@ impl ASMGenerator {
         n: bool,
         is_64: bool,
     ) {
-        let mut inst: u32 = 0x32000000;
+        let mut inst: u32 = ORR_IMM;
         inst |= (is_64 as u32) << 31;
         inst |= (n as u32) << 22;
         inst |= ((immr & 0x3f) as u32) << 16;
@@ -247,7 +260,7 @@ impl ASMGenerator {
         n: bool,
         is_64: bool,
     ) {
-        let mut inst: u32 = 0x12000000;
+        let mut inst: u32 = AND_IMM;
         inst |= (if is_64 { 1 } else { 0 }) << 31;
         inst |= (if n { 1 } else { 0 }) << 22;
         inst |= ((immr & 0x3f) as u32) << 16;
@@ -279,7 +292,7 @@ impl ASMGenerator {
         sh: bool,
         is_64: bool,
     ) {
-        let mut inst: u32 = 0x71000000;
+        let mut inst: u32 = SUBS_IMM;
         inst |= (is_64 as u32) << 31;
         inst |= (sh as u32) << 22;
         inst |= ((imm12 & 0xfff) as u32) << 10;
@@ -296,7 +309,7 @@ impl ASMGenerator {
         shift: Shift,
         is_64: bool,
     ) {
-        let mut inst: u32 = 0x6b000000;
+        let mut inst: u32 = SUBS_SHIFTED_REG;
         inst |= (is_64 as u32) << 31;
         inst |= ((shift as u8 & 0x3) as u32) << 22;
         inst |= ((imm6 & 0x3f) as u32) << 10;
@@ -314,7 +327,7 @@ impl ASMGenerator {
         cond: Cond,
         is_64: bool,
     ) {
-        let mut inst: u32 = 0x1a800000;
+        let mut inst: u32 = CSEL;
         inst |= (is_64 as u32) << 31;
         inst |= ((rm as u8 & 0x1f) as u32) << 16;
         inst |= ((cond as u8 & 0xf) as u32) << 12;
@@ -324,7 +337,7 @@ impl ASMGenerator {
     }
 
     pub fn gen_cset_instruction(&mut self, rd: RegisterX, cond: IVCond, is_64: bool) {
-        let mut inst: u32 = 0x1a9f07e0;
+        let mut inst: u32 = CSET;
         inst |= (is_64 as u32) << 31;
         inst |= ((cond as u8 & 0xf) as u32) << 12;
         inst |= (rd as u8 & 0x1f) as u32;
@@ -341,7 +354,7 @@ impl ASMGenerator {
         is_signed_offset: bool,
         is_64: bool,
     ) {
-        let mut inst: u32 = 0x2800_0000;
+        let mut inst: u32 = STP;
         if is_signed_offset {
             inst |= 0x2 << 23;
         } else {
@@ -367,7 +380,7 @@ impl ASMGenerator {
         is_64: bool,
     ) {
         // differs only in opcode constant
-        let mut inst: u32 = 0x2840_0000;
+        let mut inst: u32 = LDP;
         if is_signed_offset {
             inst |= 0x2 << 23;
         } else {
@@ -391,7 +404,7 @@ impl ASMGenerator {
         is_unsigned_offset: bool,
         is_64: bool,
     ) {
-        let mut inst: u32 = 0xb800_0000;
+        let mut inst: u32 = STR_IMM;
         inst |= (is_64 as u32) << 30;
         if is_unsigned_offset {
             inst |= 0x1 << 24;
@@ -416,7 +429,7 @@ impl ASMGenerator {
         is_unsigned_offset: bool,
         is_64: bool,
     ) {
-        let mut inst: u32 = 0xb840_0000;
+        let mut inst: u32 = LDR_IMM;
         inst |= (is_64 as u32) << 30;
         if is_unsigned_offset {
             inst |= 0x1 << 24;
@@ -430,19 +443,19 @@ impl ASMGenerator {
         inst |= (rt as u8 & 0x1f) as u32;
         self.write32(inst);
     }
-    pub fn gen_Bcond_instruction(&mut self, cond: Cond, imm19: u32) {
-        let mut inst: u32 = 0x54000000;
+    pub fn gen_bcond_instruction(&mut self, cond: Cond, imm19: u32) {
+        let mut inst: u32 = B_COND;
         inst |= (cond as u8 & 0xf) as u32;
         inst |= ((imm19 & 0x7ffff) as u32) << 5;
         self.write32(inst);
     }
     pub fn gen_bl_instruction(&mut self, imm26: u32) {
-        let mut inst: u32 = 0x94000000;
+        let mut inst: u32 = BL;
         inst |= imm26 & 0x3FFFFFF;
         self.write32(inst);
     }
     pub fn gen_svc_instruction(&mut self, imm16: u16) {
-        let mut inst = 0xd4000001;
+        let mut inst = SVC;
         inst |= (imm16 as u32) << 5;
         self.write32(inst);
     }
@@ -810,6 +823,8 @@ impl ASMGenerator {
 
     /// compile a top-level function node: compile expression and emit ret
     pub fn compile_function(&mut self, node: ASTNode) -> i32 {
+        // using entry as pseudo entry point, which is only useful when dumping object file.
+        self.label_offset.insert(ENTRY_POINT.to_string(), 0);
         // Function Prologue
         self.gen_stp_instruction(SP, RegisterX::X29, RegisterX::X30, -2, true, false, true);
         self.gen_mov_to_from_sp_instruction(RegisterX::X29, SP, true);
@@ -821,31 +836,60 @@ impl ASMGenerator {
         self.gen_ret_instruction(RegisterX::X30);
         0
     }
+    pub fn put_label_offset(&mut self, label: String, offset: u32) {
+        self.label_offset.insert(label, offset);
+    }
+    pub fn put_label_call(&mut self, offset: u32, label: String) {
+        self.label_call.insert(offset, label);
+    }
     /// 获取指令的拷贝
     pub fn get_instructions(&self) -> Vec<u32> {
         self.instructions.clone()
+    }
+    pub fn get_label_offset(&self) -> HashMap<String, u32> {
+        self.label_offset.clone()
+    }
+    pub fn get_label_call(&self) -> HashMap<u32, String> {
+        self.label_call.clone()
     }
 
     /// 计算指令占用字节大小
     pub fn get_code_size(&self) -> usize {
         self.instructions.len() * std::mem::size_of::<u32>()
     }
-
+    pub fn get_instructions_size(&self) -> u32 {
+        self.instructions.len() as u32
+    }
     /// 获取指令内存指针
     pub fn get_code_ptr(&self) -> *const u8 {
         self.instructions.as_ptr() as *const u8
     }
 
-    /// 打印指令，按照高字节到低字节
     pub fn print_instructions(&self) {
-        println!("Generated ARM64 Instructions:");
-        println!("=============================");
-        for instr in &self.instructions {
-            let bytes = instr.to_be_bytes();
-            for b in &bytes {
-                print!("{:02x}", b);
-            }
-            println!();
+        let mut code: Vec<u8> = Vec::new();
+        for word in self.instructions.iter().copied() {
+            code.extend(&word.to_le_bytes());
+        }
+
+        let cs = Capstone::new()
+            .arm64()
+            .mode(arch::arm64::ArchMode::Arm)
+            .detail(false)
+            .build()
+            .unwrap();
+
+        let instructions = cs.disasm_all(&code, 0x0).unwrap();
+
+        println!("Disassembly:");
+        println!("============");
+
+        for i in instructions.iter() {
+            println!(
+                "0x{:08x}:\t{}\t{}",
+                i.address(),
+                i.mnemonic().unwrap_or(""),
+                i.op_str().unwrap_or("")
+            );
         }
     }
 
@@ -1185,7 +1229,5 @@ mod tests {
         setup!(generator);
         let return_val = generator.execute();
         assert_eq!(return_val, object_false() as usize);
-        use crate::dump::*;
-        write_executable_aarch64(&generator.get_instructions(), "./dump.o", "./dump");
     }
 }

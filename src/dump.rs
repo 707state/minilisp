@@ -103,7 +103,7 @@ fn write_elf(path: &str, instructions: &[u32]) {
     obj.append_section_data(section_id, &text_bytes, 4);
 
     let main_symbol = obj.add_symbol(Symbol {
-        name: b"start".to_vec(), // ELF entry symbol
+        name: b"_start".to_vec(), // ELF entry symbol
         value: 0,
         size: text_bytes.len() as u64,
         kind: SymbolKind::Text,
@@ -129,7 +129,7 @@ mod tests {
         macho::{self, N_EXT},
         read::macho::{MachHeader, Nlist},
     };
-
+    #[cfg(target_os = "macos")]
     #[test]
     fn test_object_read() -> Result<(), Box<dyn Error>> {
         let data = fs::read("/Users/jask/test/learn_assembly/dump.o")?;

@@ -101,7 +101,7 @@ impl BitmaskImmediate {
     }
 }
 
-fn calc_bcond_imm19(pc_current: usize, target: usize) -> (isize, u32) {
+pub fn calc_bcond_imm19(pc_current: usize, target: usize) -> (isize, u32) {
     let offset_bytes = target as isize - pc_current as isize;
     let imm19: isize = offset_bytes / 2;
     let imm19_bin: u32 = if imm19 < 0 {
@@ -115,7 +115,7 @@ fn calc_bcond_imm19(pc_current: usize, target: usize) -> (isize, u32) {
     (imm19, imm19_bin)
 }
 
-fn calc_b_imm26(pc_current: usize, target: usize) -> (isize, u32) {
+pub fn calc_b_imm26(pc_current: usize, target: usize) -> (isize, u32) {
     let offset_bytes = target as isize - pc_current as isize;
 
     let imm26: isize = offset_bytes / 4;
@@ -222,6 +222,39 @@ pub enum Shift {
     ROR = 3,
 }
 pub const RESERVED: Shift = Shift::ROR;
+
+// Base instruction encoding
+macro_rules! define_opcodes {
+    ($($name:ident = $value:expr;)+) => {
+        $(pub const $name: u32 = $value;)+
+    };
+}
+
+define_opcodes! {
+    MOVZ=0x52800000;
+    ORR_SHIFTED_REG= 0x2a000000;
+    RET=0xd65f0000;
+    ADD_SHIFTED_REG=0x0b000000;
+    ADD_IMM=0x11000000;
+    SUB_SHIFTED_REG=0x4b000000;
+    SUB_IMM=   0x51000000;
+    SUBS_SHIFTED_REG=0x6b000000;
+    SUBS_IMM=0x71000000;
+    UBFM=0x53000000;
+    ORR_IMM=0x32000000;
+    AND_IMM=0x12000000;
+    CSEL=0x1a800000;
+    CSET=0x1a9f07e0;
+    STP= 0x2800_0000;
+    LDP=0x2840_0000;
+    STR_IMM=0xb800_0000;
+    LDR_IMM=0xb840_0000;
+    B_COND=0x54000000;
+    BL=0x94000000;
+    SVC=0xd4000001;
+}
+
+pub const ENTRY_POINT: &str = "entry";
 
 #[cfg(test)]
 mod tests {
