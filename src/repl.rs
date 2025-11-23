@@ -1,7 +1,15 @@
 use std::io;
 
+use minilisp::common::*;
+use minilisp::syscall::*;
 use minilisp::{
-    ast::{ast_is_bool, ast_is_char, ast_is_integer, ast_is_nil}, codegen::ASMGenerator, common::ENTRY_POINT, dump::write_executable_aarch64, label::Labels, object::{object_decode_bool, object_decode_char, object_decode_integer}, parser::*
+    ast::{ast_is_bool, ast_is_char, ast_is_integer, ast_is_nil},
+    codegen::ASMGenerator,
+    common::ENTRY_POINT,
+    dump::write_executable_aarch64,
+    label::Labels,
+    object::{object_decode_bool, object_decode_char, object_decode_integer},
+    parser::*,
 };
 fn main() {
     loop {
@@ -37,19 +45,13 @@ fn main() {
         main.gen_bl_instruction(0);
         // bl to real entry
         main.put_label_call(0, ENTRY_POINT.to_string());
-        // prepare exit. not needed for MacOS
-        #[cfg(target_os = "linux")]
-        {
-            use minilisp::common::*;
-            use minilisp::syscall::*;
 
-            main.gen_mov_imm_instruction(RegisterX::X8, Syscall::EXIT.number(), 0, true);
-            main.gen_svc_instruction(0);
-        }
-        let mut labels=Labels::new();
+        main.gen_mov_imm_instruction(SYSCALL_REGISTER, Syscall::EXIT.number(), 0, true);
+        main.gen_svc_instruction(0);
+        let mut labels = Labels::new();
         labels.append_label(&mut main);
         labels.append_label(&mut generator);
         labels.fixup();
-        write_executable_aarch64(&labels.get_object_instructions(),"./repl.o","repl");
+        write_executable_aarch64(&labels.get_object_instructions(), "./repl.o", "repl");
     }
 }

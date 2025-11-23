@@ -1,3 +1,10 @@
+use crate::common::RegisterX;
+
+#[cfg(target_os = "linux")]
+pub const SYSCALL_REGISTER: RegisterX = RegisterX::X8;
+#[cfg(target_os = "macos")]
+pub const SYSCALL_REGISTER: RegisterX = RegisterX::X16;
+
 #[repr(C)]
 #[derive(Copy, Debug, Clone, PartialEq)]
 pub enum Syscall {

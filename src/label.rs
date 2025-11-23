@@ -37,7 +37,7 @@ impl Labels {
             .append(&mut generator.get_instructions());
         self.global_index += generator.get_instructions_size();
     }
-    pub fn get_object_instructions(&self)->Vec<u32>{
+    pub fn get_object_instructions(&self) -> Vec<u32> {
         self.object_instructions.clone()
     }
     pub fn fixup(&mut self) {
@@ -80,18 +80,17 @@ impl Labels {
     }
 }
 
-
-mod tests{
+mod tests {
+    use crate::ast::*;
+    use crate::codegen::*;
     use crate::common::*;
     use crate::dump::write_executable_aarch64;
-    use crate::parser::*;
-    use crate::codegen::*;
-    use crate::ast::*;
-    use crate::object::*;
-    use crate::syscall::*;
     use crate::label::*;
+    use crate::object::*;
+    use crate::parser::*;
+    use crate::syscall::*;
     #[test]
-    fn test_simple_dump(){
+    fn test_simple_dump() {
         let mut p = Parser::new("(+ 1 2)");
         let ast = p.parse_expr();
         let mut generator = ASMGenerator::new();
@@ -120,17 +119,12 @@ mod tests{
         main.gen_bl_instruction(0);
         // bl to real entry
         main.put_label_call(0, ENTRY_POINT.to_string());
-        // prepare exit. not needed for MacOS
-        #[cfg(target_os = "linux")]
-        {
-
-            main.gen_mov_imm_instruction(RegisterX::X8, Syscall::EXIT.number(), 0, true);
-            main.gen_svc_instruction(0);
-        }
-        let mut labels=Labels::new();
+        main.gen_mov_imm_instruction(SYSCALL_REGISTER, Syscall::EXIT.number(), 0, true);
+        main.gen_svc_instruction(0);
+        let mut labels = Labels::new();
         labels.append_label(&mut main);
         labels.append_label(&mut generator);
         labels.fixup();
-        write_executable_aarch64(&labels.get_object_instructions(),"./repl.o","repl");
+        write_executable_aarch64(&labels.get_object_instructions(), "./repl.o", "repl");
     }
 }
