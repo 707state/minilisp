@@ -1,17 +1,4 @@
-use std::io;
 
-use minilisp::codegen::CodeSink;
-use minilisp::common::*;
-use minilisp::syscall::*;
-use minilisp::{
-    ast::{ast_is_bool, ast_is_char, ast_is_integer, ast_is_nil},
-    codegen::ASMGenerator,
-    common::ENTRY_POINT,
-    dump::write_executable_aarch64,
-    label::Labels,
-    object::{object_decode_bool, object_decode_char, object_decode_integer},
-    parser::*,
-};
 fn main() {
     // loop {
     //     let mut input = String::new();

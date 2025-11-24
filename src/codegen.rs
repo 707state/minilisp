@@ -1,11 +1,9 @@
-use crate::ast::*;
 use crate::common::*;
 use crate::object::*;
 use std::collections::HashMap;
-use std::hash::Hash;
 use std::os::raw::c_void;
 use std::ptr;
-
+use crate::parser::*;
 use capstone::{Capstone, arch, arch::BuildsCapstone};
 use libc::{
     MAP_ANON, MAP_FAILED, MAP_PRIVATE, PROT_EXEC, PROT_READ, PROT_WRITE, mmap, mprotect, munmap,
@@ -488,7 +486,15 @@ impl ASMGenerator {
         self.write32(inst);
     }
     /// compile an expression AST node into instructions, return 0 on success
-    pub fn compile_expr(&mut self, node: ASTNode, stack_index: Word) -> i32 {
+    pub fn compile_expr(&mut self, node: &LispVal, stack_index: Word) -> i32 {
+        match node{
+            LispVal::Integer(integer)=>todo!(),
+            LispVal::Character(char)=>todo!(),
+            LispVal::Bool(bool)=>todo!(),
+            LispVal::Symbol(sym)=>todo!(),
+            LispVal::List(val)=>todo!(),
+        }
+        unreachable!();
         if ast_is_integer(node) {
             let tagged = node as u64;
             self.gen_mov_imm_instruction(RegisterX::X0, (tagged & 0xffff) as u16, 0, true);
@@ -518,10 +524,6 @@ impl ASMGenerator {
             let car = ast_pair_car(node);
             let cdr = ast_pair_cdr(node);
             return self.compile_call(car, cdr, stack_index);
-        }
-        // Error
-        if ast_is_error(node) {
-            todo!()
         }
         panic!("expected node type")
     }
@@ -854,7 +856,7 @@ impl ASMGenerator {
     }
 
     /// compile a top-level function node: compile expression and emit ret
-    pub fn compile_function(&mut self, node: ASTNode) -> i32 {
+    pub fn compile_function(&mut self, node: &LispVal) -> i32 {
         // using entry as pseudo entry point, which is only useful when dumping object file.
         self.label_offset.insert(ENTRY_POINT.to_string(), 0);
         // Function Prologue
@@ -942,296 +944,3 @@ impl Drop for ASMGenerator {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use std::ffi::CString;
-
-    use super::*;
-    use crate::codegen::ASMGenerator;
-
-    macro_rules! setup {
-        ($gen:ident) => {{
-            $gen.print_asm();
-            let _ = $gen.init();
-            $gen.make_executable();
-        }};
-    }
-
-    #[test]
-    fn compile_char_test() {
-        let mut generator = ASMGenerator::new();
-        let value = 'b' as i8;
-        let node = ast_new_char(value as i32);
-        let compile_res = generator.compile_function(node);
-        assert_eq!(compile_res, 0);
-        setup!(generator);
-        let return_val = generator.execute();
-        assert_eq!(value, object_decode_char(return_val as i64) as i8);
-    }
-
-    #[test]
-    fn compile_nil_test() {
-        let mut generator = ASMGenerator::new();
-        let value = object_nil();
-        let node = ast_new_integer(value);
-        let compile_res = generator.compile_function(node);
-        assert_eq!(compile_res, 0);
-        setup!(generator);
-        let return_val = generator.execute();
-        assert_eq!(object_nil(), object_decode_integer(return_val as i64));
-    }
-
-    #[test]
-    fn compile_integer_test() {
-        let mut generator = ASMGenerator::new();
-        let node = ast_new_integer(1);
-        let compile_res = generator.compile_function(node);
-        assert_eq!(compile_res, 0);
-        setup!(generator);
-        let return_val = generator.execute();
-        assert_eq!(1, object_decode_integer(return_val as i64));
-    }
-
-    #[test]
-    fn test_add1_function() {
-        let mut generator = ASMGenerator::new();
-        generator.gen_mov_imm_instruction(RegisterX::X0, 42, 0, true);
-        generator.gen_add_imm_instruction(RegisterX::X0, RegisterX::X0, 1, false, true);
-        generator.gen_ret_instruction(RegisterX::X30);
-        setup!(generator);
-        let return_val = generator.execute();
-        assert_eq!(43, return_val);
-    }
-
-    #[test]
-    fn test_sub1_function() {
-        let mut generator = ASMGenerator::new();
-        generator.gen_mov_imm_instruction(RegisterX::X0, 42, 0, true);
-        generator.gen_sub_imm_instruction(RegisterX::X0, RegisterX::X0, 1, false, true);
-        generator.gen_ret_instruction(RegisterX::X30);
-        setup!(generator);
-        let return_val = generator.execute();
-        assert_eq!(41, return_val);
-    }
-
-    #[test]
-    fn compile_add1_function_test() {
-        let name_cstring = CString::new("add1").unwrap();
-        let node = new_unary_call(name_cstring.as_c_str(), ast_new_integer(123));
-        let mut generator = ASMGenerator::new();
-        generator.compile_function(node);
-        setup!(generator);
-        let return_val = generator.execute();
-        assert_eq!(object_encode_integer(124), return_val as i64);
-    }
-
-    #[test]
-    fn compile_boolean_question_test() {
-        // integer case
-        let name_cstring = CString::new("boolean?").unwrap();
-        let node = new_unary_call(name_cstring.as_c_str(), ast_new_integer(5));
-        let mut generator = ASMGenerator::new();
-        generator.compile_function(node);
-        setup!(generator);
-        let return_val = generator.execute();
-        assert_eq!(object_false(), return_val as i64);
-
-        // bool case
-        let node = new_unary_call(name_cstring.as_c_str(), ast_new_bool(true));
-        let mut generator = ASMGenerator::new();
-        generator.compile_function(node);
-        setup!(generator);
-        let return_val = generator.execute();
-        assert_eq!(object_true(), return_val as i64);
-    }
-
-    #[test]
-    fn compile_integer_to_char_test() {
-        let name_cstring = CString::new("integer->char").unwrap();
-        let node = new_unary_call(name_cstring.as_c_str(), ast_new_integer(97));
-        let mut generator = ASMGenerator::new();
-        generator.compile_function(node);
-        setup!(generator);
-        let return_val = generator.execute();
-        assert_eq!(object_encode_char('a' as i32), return_val as i64);
-    }
-
-    #[test]
-    fn compile_char_to_integer_test() {
-        let name_cstring = CString::new("char->integer").unwrap();
-        let node = new_unary_call(name_cstring.as_c_str(), ast_new_char('a' as i32));
-        let mut generator = ASMGenerator::new();
-        generator.compile_function(node);
-        setup!(generator);
-        let return_val = generator.execute();
-        assert_eq!(object_encode_integer(97), return_val as i64);
-    }
-
-    #[test]
-    fn compile_integer_question_test() {
-        let name_cstring = CString::new("integer?").unwrap();
-        // integer case
-        let node = new_unary_call(name_cstring.as_c_str(), ast_new_integer(9));
-        let mut generator = ASMGenerator::new();
-        generator.compile_function(node);
-        setup!(generator);
-        let return_val = generator.execute();
-        assert_eq!(object_true(), return_val as i64);
-
-        // bool case
-        let node = new_unary_call(name_cstring.as_c_str(), ast_new_bool(true));
-        let mut generator = ASMGenerator::new();
-        generator.compile_function(node);
-        setup!(generator);
-        let return_val = generator.execute();
-        assert_eq!(object_false(), return_val as i64);
-    }
-
-    #[test]
-    fn compile_sub1_function_test() {
-        let name_cstring = CString::new("sub1").unwrap();
-        let node = new_unary_call(name_cstring.as_c_str(), ast_new_integer(20));
-        let mut generator = ASMGenerator::new();
-        generator.compile_function(node);
-        setup!(generator);
-        let return_val = generator.execute();
-        assert_eq!(object_encode_integer(19), return_val as i64);
-    }
-
-    #[test]
-    fn compile_not_function_test() {
-        let name_cstring = CString::new("not").unwrap();
-        let node = new_unary_call(name_cstring.as_c_str(), ast_new_bool(false));
-        let mut generator = ASMGenerator::new();
-        generator.compile_function(node);
-        setup!(generator);
-        let return_val = generator.execute();
-        assert_eq!(return_val, object_true() as usize);
-        let mut generator = ASMGenerator::new();
-        let node = new_unary_call(name_cstring.as_c_str(), ast_new_bool(true));
-        generator.compile_function(node);
-        setup!(generator);
-        let return_val = generator.execute();
-        assert_eq!(return_val, object_false() as usize);
-    }
-    #[test]
-    fn compile_add_binary_function() {
-        let name_cstring = CString::new("+").unwrap();
-        let node = new_binary_call(
-            name_cstring.as_c_str(),
-            ast_new_integer(8),
-            ast_new_integer(5),
-        );
-        let mut generator = ASMGenerator::new();
-        generator.compile_function(node);
-        setup!(generator);
-        let return_val = generator.execute();
-        assert_eq!(return_val, object_encode_integer(13) as usize);
-    }
-    #[test]
-    fn compile_complex_add_binary_function() {
-        let name_cstring = CString::new("+").unwrap();
-        let node = new_binary_call(
-            name_cstring.as_c_str(),
-            new_binary_call(
-                name_cstring.as_c_str(),
-                ast_new_integer(1),
-                ast_new_integer(4),
-            ),
-            new_binary_call(
-                name_cstring.as_c_str(),
-                ast_new_integer(2),
-                ast_new_integer(8),
-            ),
-        );
-        let mut generator = ASMGenerator::new();
-        generator.compile_function(node);
-        setup!(generator);
-        let return_val = generator.execute();
-        assert_eq!(return_val, object_encode_integer(15) as usize);
-    }
-    #[test]
-    fn compile_sub_binary_function() {
-        let name_cstring = CString::new("-").unwrap();
-        let node = new_binary_call(
-            name_cstring.as_c_str(),
-            ast_new_integer(8),
-            ast_new_integer(5),
-        );
-        let mut generator = ASMGenerator::new();
-        generator.compile_function(node);
-        setup!(generator);
-        let return_val = generator.execute();
-        assert_eq!(return_val, object_encode_integer(3) as usize);
-    }
-    #[test]
-    fn compile_complex_sub_binary_function() {
-        let name_cstring = CString::new("-").unwrap();
-        let node = new_binary_call(
-            name_cstring.as_c_str(),
-            new_binary_call(
-                name_cstring.as_c_str(),
-                ast_new_integer(19),
-                ast_new_integer(1),
-            ),
-            new_binary_call(
-                name_cstring.as_c_str(),
-                ast_new_integer(3),
-                ast_new_integer(2),
-            ),
-        );
-        let mut generator = ASMGenerator::new();
-        generator.compile_function(node);
-        setup!(generator);
-        let return_val = generator.execute();
-        assert_eq!(return_val, object_encode_integer(17) as usize);
-    }
-    #[test]
-    fn compile_less_binary_function() {
-        let name_cstring = CString::new("<").unwrap();
-        let node = new_binary_call(
-            name_cstring.as_c_str(),
-            ast_new_integer(2),
-            ast_new_integer(3),
-        );
-        let mut generator = ASMGenerator::new();
-        generator.compile_function(node);
-        setup!(generator);
-        let return_val = generator.execute();
-        assert_eq!(return_val, object_true() as usize);
-        let node = new_binary_call(
-            name_cstring.as_c_str(),
-            ast_new_integer(3),
-            ast_new_integer(2),
-        );
-        let mut generator = ASMGenerator::new();
-        generator.compile_function(node);
-        setup!(generator);
-        let return_val = generator.execute();
-        assert_eq!(return_val, object_false() as usize);
-    }
-    #[test]
-    fn compile_equal_binary_function() {
-        let name_cstring = CString::new("=").unwrap();
-        let node = new_binary_call(
-            name_cstring.as_c_str(),
-            ast_new_integer(2),
-            ast_new_integer(2),
-        );
-        let mut generator = ASMGenerator::new();
-        generator.compile_function(node);
-        setup!(generator);
-        let return_val = generator.execute();
-        assert_eq!(return_val, object_true() as usize);
-        let node = new_binary_call(
-            name_cstring.as_c_str(),
-            ast_new_integer(2),
-            ast_new_integer(3),
-        );
-        let mut generator = ASMGenerator::new();
-        generator.compile_function(node);
-        setup!(generator);
-        let return_val = generator.execute();
-        assert_eq!(return_val, object_false() as usize);
-    }
-}

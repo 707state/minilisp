@@ -99,9 +99,17 @@ pub fn parse_lisp(input: &str) -> IResult<&str, LispVal> {
     parse_expr(input)
 }
 
+impl LispVal{
+    // implement a simple static checking later.
+    pub fn verify(&self)-> Result<(),String>{
+        todo!();
+    }
+}
+
+
+#[cfg(test)]
 mod tests {
     use crate::parser::parse_lisp;
-
     #[test]
     fn test_parsing() {
         let src = "(define x 42 'a'  (list 1 2 3))";
