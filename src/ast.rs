@@ -99,7 +99,7 @@ pub struct Pair {
     pub cdr: ASTNode,
 }
 
-pub fn AST_pair_set_car(node: ASTNode, car: ASTNode) {
+pub fn ast_pair_set_car(node: ASTNode, car: ASTNode) {
     unsafe {
         let p = ast_as_pair(node);
         (*p).car = car;
@@ -115,7 +115,7 @@ pub fn ast_pair_set_cdr(node: ASTNode, cdr: ASTNode) {
 
 pub fn ast_new_pair(car: ASTNode, cdr: ASTNode) -> ASTNode {
     let node = ast_heap_alloc(K_PAIR_TAG as Uword, core::mem::size_of::<Pair>() as Uword);
-    AST_pair_set_car(node, car);
+    ast_pair_set_car(node, car);
     ast_pair_set_cdr(node, cdr);
     node
 }
@@ -188,7 +188,14 @@ pub fn ast_symbol_cstr(node: ASTNode) -> *const c_char {
         (object_address(node) as *const u8).add(core::mem::size_of::<Symbol>()) as *const c_char
     }
 }
-
+pub fn ast_symbol_as_cstr(node: ASTNode) -> &'static CStr {
+    unsafe {
+        let s = ast_as_symbol(node);
+        let ptr = (object_address(node) as *const u8).add(core::mem::size_of::<Symbol>())
+            as *const c_char;
+        CStr::from_ptr(ptr)
+    }
+}
 pub fn ast_symbol_matches(node: ASTNode, cstr: &CStr) -> bool {
     unsafe {
         let ptr = ast_symbol_cstr(node);
@@ -222,4 +229,61 @@ pub fn operand1(args: ASTNode) -> ASTNode {
 
 pub fn operand2(args: ASTNode) -> ASTNode {
     ast_pair_car(ast_pair_cdr(args))
+}
+pub fn operand3(args: ASTNode) -> ASTNode {
+    ast_pair_car(ast_pair_car(ast_pair_cdr(args)))
+}
+
+pub fn print_ast(node: ASTNode) {
+    println!("{}", format_ast(node));
+}
+
+/// Convert ASTNode to a Lisp-readable string
+pub fn format_ast(node: ASTNode) -> String {
+    if ast_is_nil(node) {
+        return "()".to_string();
+    }
+
+    if ast_is_pair(node) {
+        return format!("({})", format_list(node));
+    }
+
+    if ast_is_symbol(node) {
+        let s = ast_symbol_as_cstr(node).to_str().unwrap();
+        return s.to_string();
+    }
+
+    if ast_is_integer(node) {
+        return ast_get_integer(node).to_string();
+    }
+
+    if ast_is_char(node) {
+        let c = ast_get_char(node) as u8 as char;
+        return format!("'{}'", c);
+    }
+
+    if ast_is_bool(node) {
+        return if ast_get_bool(node) { "#t" } else { "#f" }.to_string();
+    }
+
+    "<unknown>".to_string()
+}
+
+fn format_list(node: ASTNode) -> String {
+    let mut parts = Vec::new();
+    let mut cur = node;
+
+    while ast_is_pair(cur) {
+        let car = operand1(cur);
+        parts.push(format_ast(car));
+        cur = operand2(cur);
+    }
+
+    // proper list ends with nil
+    if ast_is_nil(cur) {
+        parts.join(" ")
+    } else {
+        // dotted pair: (a b . c)
+        format!("{} . {}", parts.join(" "), format_ast(cur))
+    }
 }

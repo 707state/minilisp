@@ -256,6 +256,14 @@ define_opcodes! {
 
 pub const ENTRY_POINT: &str = "entry";
 
+pub fn is_initial_symbol_char(c: char) -> bool {
+    c.is_ascii_alphabetic() || "+-*/!?<>=_".contains(c)
+}
+
+pub fn is_subsequent_symbol_char(c: char) -> bool {
+    c.is_ascii_alphanumeric() || "+-*/!?<>=_".contains(c)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

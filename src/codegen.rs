@@ -13,6 +13,7 @@ use libc::{
 
 pub trait CodeSink {
     fn emit(&mut self);
+    fn print_asm(&self);
 }
 
 pub struct ASMGenerator {
@@ -29,6 +30,33 @@ impl CodeSink for ASMGenerator {
     fn emit(&mut self) {
         self.instructions.push(self.cur_instruction);
         self.new_instruction();
+    }
+    fn print_asm(&self) {
+        let mut code: Vec<u8> = Vec::new();
+        for word in self.instructions.iter().copied() {
+            code.extend(&word.to_le_bytes());
+        }
+
+        let cs = Capstone::new()
+            .arm64()
+            .mode(arch::arm64::ArchMode::Arm)
+            .detail(false)
+            .build()
+            .unwrap();
+
+        let instructions = cs.disasm_all(&code, 0x0).unwrap();
+
+        println!("Disassembly:");
+        println!("============");
+
+        for i in instructions.iter() {
+            println!(
+                "0x{:08x}:\t{}\t{}",
+                i.address(),
+                i.mnemonic().unwrap_or(""),
+                i.op_str().unwrap_or("")
+            );
+        }
     }
 }
 impl ASMGenerator {
@@ -815,6 +843,10 @@ impl ASMGenerator {
                     panic!("Failed to encode value in compare_imm32");
                 }
                 return 0;
+            } else if ast_symbol_matches(
+                callable,
+                std::ffi::CStr::from_bytes_with_nul(b"let\0").unwrap(),
+            ) {
             }
         }
 
@@ -863,34 +895,6 @@ impl ASMGenerator {
     /// 获取指令内存指针
     pub fn get_code_ptr(&self) -> *const u8 {
         self.instructions.as_ptr() as *const u8
-    }
-
-    pub fn print_instructions(&self) {
-        let mut code: Vec<u8> = Vec::new();
-        for word in self.instructions.iter().copied() {
-            code.extend(&word.to_le_bytes());
-        }
-
-        let cs = Capstone::new()
-            .arm64()
-            .mode(arch::arm64::ArchMode::Arm)
-            .detail(false)
-            .build()
-            .unwrap();
-
-        let instructions = cs.disasm_all(&code, 0x0).unwrap();
-
-        println!("Disassembly:");
-        println!("============");
-
-        for i in instructions.iter() {
-            println!(
-                "0x{:08x}:\t{}\t{}",
-                i.address(),
-                i.mnemonic().unwrap_or(""),
-                i.op_str().unwrap_or("")
-            );
-        }
     }
 
     /// mmap 分配可写内存，并拷贝指令
@@ -947,7 +951,7 @@ mod tests {
 
     macro_rules! setup {
         ($gen:ident) => {{
-            $gen.print_instructions();
+            $gen.print_asm();
             let _ = $gen.init();
             $gen.make_executable();
         }};

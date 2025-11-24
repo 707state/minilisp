@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
+use capstone::{Capstone, arch, arch::BuildsCapstone};
+
 use crate::{
-    codegen::ASMGenerator,
+    codegen::{ASMGenerator, CodeSink},
     common::{B_COND, BL, calc_b_imm26, calc_bcond_imm19},
 };
 
@@ -80,51 +82,32 @@ impl Labels {
     }
 }
 
-mod tests {
-    use crate::ast::*;
-    use crate::codegen::*;
-    use crate::common::*;
-    use crate::dump::write_executable_aarch64;
-    use crate::label::*;
-    use crate::object::*;
-    use crate::parser::*;
-    use crate::syscall::*;
-    #[test]
-    fn test_simple_dump() {
-        let mut p = Parser::new("(+ 1 2)");
-        let ast = p.parse_expr();
-        let mut generator = ASMGenerator::new();
-        generator.compile_function(ast);
-        let _ = generator.init();
-        generator.make_executable();
-        let return_val = generator.execute();
-        if ast_is_integer(return_val) {
-            println!("Return value: {}", object_decode_integer(return_val as i64));
-        } else if ast_is_bool(return_val) {
-            println!("Return value: {}", object_decode_bool(return_val as i64));
-        } else if ast_is_nil(return_val) {
-            println!("Return value: nil");
-        } else if ast_is_char(return_val) {
-            println!(
-                "Return value: {}",
-                object_decode_char(return_val as i64) as char
-            );
-        } else {
-            println!("Type of return value not supported to print currently!");
+impl CodeSink for Labels {
+    fn emit(&mut self) {}
+    fn print_asm(&self) {
+        let mut code: Vec<u8> = Vec::new();
+        for word in self.object_instructions.iter().copied() {
+            code.extend(&word.to_le_bytes());
         }
-        generator.print_instructions();
-        // before has finished executing in JIT-like mode.
-        // Will dump binary afterwards.
-        let mut main = ASMGenerator::new();
-        main.gen_bl_instruction(0);
-        // bl to real entry
-        main.put_label_call(0, ENTRY_POINT.to_string());
-        main.gen_mov_imm_instruction(SYSCALL_REGISTER, Syscall::EXIT.number(), 0, true);
-        main.gen_svc_instruction(0);
-        let mut labels = Labels::new();
-        labels.append_label(&mut main);
-        labels.append_label(&mut generator);
-        labels.fixup();
-        write_executable_aarch64(&labels.get_object_instructions(), "./repl.o", "repl");
+
+        let cs = Capstone::new()
+            .arm64()
+            .mode(arch::arm64::ArchMode::Arm)
+            .detail(false)
+            .build()
+            .unwrap();
+
+        let instructions = cs.disasm_all(&code, 0x0).unwrap();
+        println!("Disassembly Object:");
+        println!("============");
+
+        for i in instructions.iter() {
+            println!(
+                "0x{:08x}:\t{}\t{}",
+                i.address(),
+                i.mnemonic().unwrap_or(""),
+                i.op_str().unwrap_or("")
+            );
+        }
     }
 }
