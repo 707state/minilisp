@@ -58,7 +58,7 @@ pub fn ast_get_char(node: ASTNode) -> char {
     object_decode_char(node as Word) as char
 }
 
-pub fn ast_new_char(value: i32) -> ASTNode {
+pub fn ast_new_char(value: char) -> ASTNode {
     object_encode_char(value) as ASTNode
 }
 

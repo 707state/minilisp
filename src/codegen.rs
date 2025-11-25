@@ -1,13 +1,13 @@
 use crate::common::*;
 use crate::object::*;
-use std::collections::HashMap;
-use std::os::raw::c_void;
-use std::ptr;
 use crate::parser::*;
 use capstone::{Capstone, arch, arch::BuildsCapstone};
 use libc::{
     MAP_ANON, MAP_FAILED, MAP_PRIVATE, PROT_EXEC, PROT_READ, PROT_WRITE, mmap, mprotect, munmap,
 };
+use std::collections::HashMap;
+use std::os::raw::c_void;
+use std::ptr;
 
 pub trait CodeSink {
     fn emit(&mut self);
@@ -487,45 +487,48 @@ impl ASMGenerator {
     }
     /// compile an expression AST node into instructions, return 0 on success
     pub fn compile_expr(&mut self, node: &LispVal, stack_index: Word) -> i32 {
-        match node{
-            LispVal::Integer(integer)=>todo!(),
-            LispVal::Character(char)=>todo!(),
-            LispVal::Bool(bool)=>todo!(),
-            LispVal::Symbol(sym)=>todo!(),
-            LispVal::List(val)=>todo!(),
+        match node {
+            LispVal::Integer(integer) => {
+                self.gen_mov_imm_instruction(
+                    RegisterX::X0,
+                    (object_encode_integer(*integer) & 0xffff) as u16,
+                    0,
+                    true,
+                );
+                return 0;
+            }
+            LispVal::Character(char) => {
+                self.gen_mov_imm_instruction(
+                    RegisterX::X0,
+                    (object_encode_char(*char) & 0xffff) as u16,
+                    0,
+                    true,
+                );
+                return 0;
+            }
+            LispVal::Bool(bool) => {
+                self.gen_mov_imm_instruction(
+                    RegisterX::X0,
+                    object_encode_bool(*bool) as u16,
+                    0,
+                    true,
+                );
+                return 0;
+            }
+            LispVal::Symbol(sym) => {
+                todo!();
+            }
+            LispVal::List(val) => {
+                if val.is_empty() {
+                    self.gen_mov_imm_instruction(RegisterX::X0, object_nil() as u16, 0, true);
+                    return 0;
+                } else {
+                    let car = &val[0];
+                    let cdr = &val[1..];
+                    return self.compile_call(car, cdr, stack_index);
+                }
+            }
         }
-        unreachable!();
-        if ast_is_integer(node) {
-            let tagged = node as u64;
-            self.gen_mov_imm_instruction(RegisterX::X0, (tagged & 0xffff) as u16, 0, true);
-            return 0;
-        }
-        // Character immediate
-        if ast_is_char(node) {
-            let tagged = node as u64;
-            self.gen_mov_imm_instruction(RegisterX::X0, (tagged & 0xffff) as u16, 0, true);
-            return 0;
-        }
-        // Boolean immediate
-        if ast_is_bool(node) {
-            let tagged = node as u64;
-            self.gen_mov_imm_instruction(RegisterX::X0, (tagged & 0xffff) as u16, 0, true);
-            return 0;
-        }
-        // Nil
-        if ast_is_nil(node) {
-            let nil_tagged = object_nil() as u64;
-            self.gen_mov_imm_instruction(RegisterX::X0, (nil_tagged & 0xffff) as u16, 0, true);
-            return 0;
-        }
-
-        // Pair / function call
-        if ast_is_pair(node) {
-            let car = ast_pair_car(node);
-            let cdr = ast_pair_cdr(node);
-            return self.compile_call(car, cdr, stack_index);
-        }
-        panic!("expected node type")
     }
 
     /// helper to create boolean/compare results as tagged objects
@@ -573,7 +576,7 @@ impl ASMGenerator {
     }
 
     /// compile a function call (only unary calls supported, like add1, sub1, ...)
-    pub fn compile_call(&mut self, callable: ASTNode, args: ASTNode, stack_index: Word) -> i32 {
+    pub fn compile_call(&mut self, callable: &LispVal, args: &[LispVal], stack_index: Word) -> i32 {
         if ast_is_symbol(callable) {
             if ast_symbol_matches(
                 callable,
@@ -943,4 +946,3 @@ impl Drop for ASMGenerator {
         self.reclaim();
     }
 }
-

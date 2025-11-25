@@ -17,7 +17,7 @@ pub fn object_decode_integer(value: Word) -> Word {
 }
 
 /// Encode character as tagged object.
-pub fn object_encode_char(value: i32) -> Word {
+pub fn object_encode_char(value: char) -> Word {
     ((value as Word) << K_CHAR_SHIFT) | (K_CHAR_TAG as Word)
 }
 
