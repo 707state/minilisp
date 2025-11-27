@@ -577,285 +577,284 @@ impl ASMGenerator {
 
     /// compile a function call (only unary calls supported, like add1, sub1, ...)
     pub fn compile_call(&mut self, callable: &LispVal, args: &[LispVal], stack_index: Word) -> i32 {
-        if ast_is_symbol(callable) {
-            if ast_symbol_matches(
-                callable,
-                std::ffi::CStr::from_bytes_with_nul(b"add1\0").unwrap(),
-            ) {
-                // evaluate operand, leave result in X0
-                self.compile_expr(operand1(args), stack_index);
-                // add 1 (encoded integer immediate)
-                let imm = object_encode_integer(1) as u64;
-                self.gen_add_imm_instruction(
-                    RegisterX::X0,
-                    RegisterX::X0,
-                    (imm & 0xfff) as u16,
-                    false,
-                    true,
-                );
-                return 0;
-            } else if ast_symbol_matches(
-                callable,
-                std::ffi::CStr::from_bytes_with_nul(b"sub1\0").unwrap(),
-            ) {
-                self.compile_expr(operand1(args), stack_index);
-                let imm = object_encode_integer(1) as u64;
-                self.gen_sub_imm_instruction(
-                    RegisterX::X0,
-                    RegisterX::X0,
-                    (imm & 0xfff) as u16,
-                    false,
-                    true,
-                );
-                return 0;
-            } else if ast_symbol_matches(
-                callable,
-                std::ffi::CStr::from_bytes_with_nul(b"integer->char\0").unwrap(),
-            ) {
-                self.compile_expr(operand1(args), stack_index);
-                // shift payload: integer->char uses shift difference
-                let shift = (K_CHAR_SHIFT - K_INTEGER_SHIFT) as i32;
-                self.gen_lsl_imm_instruction(RegisterX::X0, RegisterX::X0, shift, true);
-                if let Some(imm) = BitmaskImmediate::try_from(K_CHAR_TAG as u64) {
-                    self.gen_orr_imm_instruction(
+        match callable {
+            LispVal::Symbol(sym) => match sym.as_str() {
+                "add1" => {
+                    assert_eq!(args.len(), 1);
+                    self.compile_expr(&args[0], stack_index);
+                    let imm = object_encode_integer(1) as u64;
+                    self.gen_add_imm_instruction(
                         RegisterX::X0,
                         RegisterX::X0,
-                        imm.immr,
-                        imm.imms,
-                        imm.n != 0,
+                        (imm & 0xfff) as u16,
+                        false,
                         true,
                     );
-                } else {
-                    panic!("Unable to decode kCharShift-kIntegerShift");
+                    0
                 }
-                return 0;
-            } else if ast_symbol_matches(
-                callable,
-                std::ffi::CStr::from_bytes_with_nul(b"char->integer\0").unwrap(),
-            ) {
-                self.compile_expr(operand1(args), stack_index);
-                self.gen_lsr_imm_instruction(
-                    RegisterX::X0,
-                    RegisterX::X0,
-                    K_CHAR_SHIFT as i32,
-                    true,
-                );
-                self.gen_lsl_imm_instruction(
-                    RegisterX::X0,
-                    RegisterX::X0,
-                    K_INTEGER_SHIFT as i32,
-                    true,
-                );
-                return 0;
-            } else if ast_symbol_matches(
-                callable,
-                std::ffi::CStr::from_bytes_with_nul(b"nil?\0").unwrap(),
-            ) {
-                self.compile_expr(operand1(args), stack_index);
-                self.compile_compare_imm32(object_nil() as i32);
-                return 0;
-            } else if ast_symbol_matches(
-                callable,
-                std::ffi::CStr::from_bytes_with_nul(b"zero?\0").unwrap(),
-            ) {
-                self.compile_expr(operand1(args), stack_index);
-                self.compile_compare_imm32(0);
-                return 0;
-            } else if ast_symbol_matches(
-                callable,
-                std::ffi::CStr::from_bytes_with_nul(b"not\0").unwrap(),
-            ) {
-                self.compile_expr(operand1(args), stack_index);
-                self.compile_compare_imm32(object_false() as i32);
-                return 0;
-            } else if ast_symbol_matches(
-                callable,
-                std::ffi::CStr::from_bytes_with_nul(b"integer?\0").unwrap(),
-            ) {
-                self.compile_expr(operand1(args), stack_index);
-                if let Some(imm) = BitmaskImmediate::try_from(K_INTEGER_TAG_MASK as u64) {
-                    self.gen_and_imm_instruction(
+                "sub1" => {
+                    assert_eq!(args.len(), 1);
+                    self.compile_expr(&args[0], stack_index);
+                    let imm = object_encode_integer(1) as u64;
+                    self.gen_sub_imm_instruction(
                         RegisterX::X0,
                         RegisterX::X0,
-                        imm.immr,
-                        imm.imms,
-                        imm.n != 0,
+                        (imm & 0xfff) as u16,
+                        false,
                         true,
                     );
-                    self.compile_compare_imm32(K_INTEGER_TAG as i32);
-                    return 0;
-                } else {
-                    panic!("Failed to encode the immediate value");
+                    0
                 }
-            } else if ast_symbol_matches(
-                callable,
-                std::ffi::CStr::from_bytes_with_nul(b"boolean?\0").unwrap(),
-            ) {
-                self.compile_expr(operand1(args), stack_index);
-                if let Some(imm) = BitmaskImmediate::try_from(K_IMMEDIATE_TAG_MASK as u64) {
-                    self.gen_and_imm_instruction(
+                "integer->char" => {
+                    assert_eq!(args.len(), 1);
+                    self.compile_expr(&args[0], stack_index);
+                    let shift = (K_CHAR_SHIFT - K_INTEGER_SHIFT) as i32;
+                    self.gen_lsl_imm_instruction(RegisterX::X0, RegisterX::X0, shift, true);
+                    if let Some(imm) = BitmaskImmediate::try_from(K_CHAR_TAG as u64) {
+                        self.gen_orr_imm_instruction(
+                            RegisterX::X0,
+                            RegisterX::X0,
+                            imm.immr,
+                            imm.imms,
+                            imm.n != 0,
+                            true,
+                        );
+                    } else {
+                        panic!("Unable to decode kCharShift-kIntegerShift");
+                    }
+                    0
+                }
+                "char->integer" => {
+                    assert_eq!(args.len(), 1);
+                    self.compile_expr(&args[0], stack_index);
+                    self.gen_lsr_imm_instruction(
                         RegisterX::X0,
                         RegisterX::X0,
-                        imm.immr,
-                        imm.imms,
-                        imm.n != 0,
+                        K_CHAR_SHIFT as i32,
                         true,
                     );
-                    self.compile_compare_imm32(K_BOOL_TAG as i32);
-                    return 0;
-                } else {
-                    panic!("Failed to encode the immediate value");
-                }
-            } else if ast_symbol_matches(
-                callable,
-                std::ffi::CStr::from_bytes_with_nul(b"+\0").unwrap(),
-            ) {
-                self.compile_expr(operand2(args), stack_index);
-                // STR X0, [X29,#stack_index]
-                self.gen_str_imm_instruction(
-                    RegisterX::X29,
-                    RegisterX::X0,
-                    stack_index as i16,
-                    true,
-                    false,
-                    true,
-                );
-                // compile first parameter to x0
-                self.compile_expr(operand1(args), stack_index - K_WORD_SIZE);
-                // load data from stack to X1
-                self.gen_ldr_imm_instruction(
-                    RegisterX::X29,
-                    RegisterX::X1,
-                    -stack_index as i16,
-                    false,
-                    false,
-                    true,
-                );
-                // add result to x0
-                self.gen_add_shifted_reg_instruction(
-                    RegisterX::X0,
-                    RegisterX::X0,
-                    RegisterX::X1,
-                    0,
-                    Shift::LSL,
-                    true,
-                );
-                return 0;
-            } else if ast_symbol_matches(
-                callable,
-                std::ffi::CStr::from_bytes_with_nul(b"-\0").unwrap(),
-            ) {
-                self.compile_expr(operand2(args), stack_index);
-                self.gen_str_imm_instruction(
-                    RegisterX::X29,
-                    RegisterX::X0,
-                    stack_index as i16,
-                    true,
-                    false,
-                    true,
-                );
-                // compile first parameter to x0
-                self.compile_expr(operand1(args), stack_index - K_WORD_SIZE);
-                // load data from stack to X1
-                self.gen_ldr_imm_instruction(
-                    RegisterX::X29,
-                    RegisterX::X1,
-                    -stack_index as i16,
-                    false,
-                    false,
-                    true,
-                );
-                // sub result to x0
-                self.gen_sub_shifted_reg_instruction(
-                    RegisterX::X0,
-                    RegisterX::X0,
-                    RegisterX::X1,
-                    0,
-                    Shift::LSL,
-                    true,
-                );
-                return 0;
-            } else if ast_symbol_matches(
-                callable,
-                std::ffi::CStr::from_bytes_with_nul(b"<\0").unwrap(),
-            ) {
-                self.compile_expr(operand2(args), stack_index);
-                self.gen_str_imm_instruction(
-                    RegisterX::X29,
-                    RegisterX::X0,
-                    stack_index as i16,
-                    true,
-                    false,
-                    true,
-                );
-                self.compile_expr(operand1(args), stack_index - K_WORD_SIZE);
-                self.gen_ldr_imm_instruction(
-                    RegisterX::X29,
-                    RegisterX::X1,
-                    -stack_index as i16,
-                    false,
-                    false,
-                    true,
-                );
-                self.compile_compare_reg(RegisterX::X0, RegisterX::X1);
-                return 0;
-            } else if ast_symbol_matches(
-                callable,
-                std::ffi::CStr::from_bytes_with_nul(b"=\0").unwrap(),
-            ) {
-                self.compile_expr(operand2(args), stack_index);
-                self.gen_str_imm_instruction(
-                    RegisterX::X29,
-                    RegisterX::X0,
-                    stack_index as i16,
-                    true,
-                    false,
-                    true,
-                );
-                self.compile_expr(operand1(args), stack_index - K_WORD_SIZE);
-                self.gen_ldr_imm_instruction(
-                    RegisterX::X29,
-                    RegisterX::X1,
-                    -stack_index as i16,
-                    false,
-                    false,
-                    true,
-                );
-                self.gen_cmp_shifted_reg_instruction(
-                    RegisterX::X0,
-                    RegisterX::X1,
-                    0,
-                    Shift::LSL,
-                    true,
-                );
-                self.gen_cset_instruction(RegisterX::X0, IVCond::EQ, true);
-                self.gen_lsl_imm_instruction(
-                    RegisterX::X0,
-                    RegisterX::X0,
-                    K_BOOL_SHIFT as i32,
-                    true,
-                );
-                if let Some(imm) = BitmaskImmediate::try_from(K_BOOL_TAG as u64) {
-                    self.gen_orr_imm_instruction(
+                    self.gen_lsl_imm_instruction(
                         RegisterX::X0,
                         RegisterX::X0,
-                        imm.immr,
-                        imm.imms,
-                        imm.n != 0,
+                        K_INTEGER_SHIFT as i32,
                         true,
                     );
-                } else {
-                    panic!("Failed to encode value in compare_imm32");
+                    0
                 }
-                return 0;
-            } else if ast_symbol_matches(
-                callable,
-                std::ffi::CStr::from_bytes_with_nul(b"let\0").unwrap(),
-            ) {
+                "nil?" => {
+                    assert_eq!(args.len(), 1);
+                    self.compile_expr(&args[0], stack_index);
+                    self.compile_compare_imm32(object_nil() as i32);
+                    0
+                }
+                "zero?" => {
+                    assert_eq!(args.len(), 1);
+                    self.compile_expr(&args[0], stack_index);
+                    self.compile_compare_imm32(0);
+                    0
+                }
+                "not" => {
+                    assert_eq!(args.len(), 1);
+                    self.compile_expr(&args[0], stack_index);
+                    self.compile_compare_imm32(object_false() as i32);
+                    0
+                }
+                "integer?" => {
+                    assert_eq!(args.len(), 1);
+                    self.compile_expr(&args[0], stack_index);
+                    if let Some(imm) = BitmaskImmediate::try_from(K_INTEGER_TAG_MASK as u64) {
+                        self.gen_and_imm_instruction(
+                            RegisterX::X0,
+                            RegisterX::X0,
+                            imm.immr,
+                            imm.imms,
+                            imm.n != 0,
+                            true,
+                        );
+                        self.compile_compare_imm32(K_INTEGER_TAG as i32);
+                        return 0;
+                    } else {
+                        panic!("Failed to encode the immediate value");
+                    }
+                }
+                "boolean?" => {
+                    assert_eq!(args.len(), 1);
+                    self.compile_expr(&args[0], stack_index);
+                    if let Some(imm) = BitmaskImmediate::try_from(K_IMMEDIATE_TAG_MASK as u64) {
+                        self.gen_and_imm_instruction(
+                            RegisterX::X0,
+                            RegisterX::X0,
+                            imm.immr,
+                            imm.imms,
+                            imm.n != 0,
+                            true,
+                        );
+                        self.compile_compare_imm32(K_BOOL_TAG as i32);
+                        return 0;
+                    } else {
+                        panic!("Failed to encode the immediate value");
+                    }
+                }
+                "=" => {
+                    assert_eq!(args.len(), 2);
+                    self.compile_expr(&args[1], stack_index);
+                    self.gen_str_imm_instruction(
+                        RegisterX::X29,
+                        RegisterX::X0,
+                        stack_index as i16,
+                        true,
+                        false,
+                        true,
+                    );
+                    self.compile_expr(&args[0], stack_index - K_WORD_SIZE);
+                    self.gen_ldr_imm_instruction(
+                        RegisterX::X29,
+                        RegisterX::X1,
+                        -stack_index as i16,
+                        false,
+                        false,
+                        true,
+                    );
+                    self.gen_cmp_shifted_reg_instruction(
+                        RegisterX::X0,
+                        RegisterX::X1,
+                        0,
+                        Shift::LSL,
+                        true,
+                    );
+                    self.gen_cset_instruction(RegisterX::X0, IVCond::EQ, true);
+                    self.gen_lsl_imm_instruction(
+                        RegisterX::X0,
+                        RegisterX::X0,
+                        K_BOOL_SHIFT as i32,
+                        true,
+                    );
+                    if let Some(imm) = BitmaskImmediate::try_from(K_BOOL_TAG as u64) {
+                        self.gen_orr_imm_instruction(
+                            RegisterX::X0,
+                            RegisterX::X0,
+                            imm.immr,
+                            imm.imms,
+                            imm.n != 0,
+                            true,
+                        );
+                    } else {
+                        panic!("Failed to encode value in compare_imm32");
+                    }
+                    0
+                }
+                "<" => {
+                    assert_eq!(args.len(), 2);
+                    self.compile_expr(&args[1], stack_index);
+                    self.gen_str_imm_instruction(
+                        RegisterX::X29,
+                        RegisterX::X0,
+                        stack_index as i16,
+                        true,
+                        false,
+                        true,
+                    );
+                    self.compile_expr(&args[0], stack_index - K_WORD_SIZE);
+                    self.gen_ldr_imm_instruction(
+                        RegisterX::X29,
+                        RegisterX::X1,
+                        -stack_index as i16,
+                        false,
+                        false,
+                        true,
+                    );
+                    self.compile_compare_reg(RegisterX::X0, RegisterX::X1);
+                    0
+                }
+                "+" => {
+                    assert!(args.len() > 1, "+ expects arguments more than 1");
+                    0
+                }
+                "-" => {
+                    todo!()
+                }
+                "let" => {
+                    todo!()
+                }
+                _ => {
+                    panic!("{} is not supported!", sym);
+                }
+            },
+            _ => {
+                panic!("Should be a symbol in the beginning of list.");
             }
         }
-
-        panic!("unexpected call type");
+        // if ast_is_symbol(callable) {
+        //     if ast_symbol_matches(
+        //         callable,
+        //         std::ffi::CStr::from_bytes_with_nul(b"+\0").unwrap(),
+        //     ) {
+        //         self.compile_expr(operand2(args), stack_index);
+        //         // STR X0, [X29,#stack_index]
+        //         self.gen_str_imm_instruction(
+        //             RegisterX::X29,
+        //             RegisterX::X0,
+        //             stack_index as i16,
+        //             true,
+        //             false,
+        //             true,
+        //         );
+        //         // compile first parameter to x0
+        //         self.compile_expr(operand1(args), stack_index - K_WORD_SIZE);
+        //         // load data from stack to X1
+        //         self.gen_ldr_imm_instruction(
+        //             RegisterX::X29,
+        //             RegisterX::X1,
+        //             -stack_index as i16,
+        //             false,
+        //             false,
+        //             true,
+        //         );
+        //         // add result to x0
+        //         self.gen_add_shifted_reg_instruction(
+        //             RegisterX::X0,
+        //             RegisterX::X0,
+        //             RegisterX::X1,
+        //             0,
+        //             Shift::LSL,
+        //             true,
+        //         );
+        //         return 0;
+        //     } else if ast_symbol_matches(
+        //         callable,
+        //         std::ffi::CStr::from_bytes_with_nul(b"-\0").unwrap(),
+        //     ) {
+        //         self.compile_expr(operand2(args), stack_index);
+        //         self.gen_str_imm_instruction(
+        //             RegisterX::X29,
+        //             RegisterX::X0,
+        //             stack_index as i16,
+        //             true,
+        //             false,
+        //             true,
+        //         );
+        //         // compile first parameter to x0
+        //         self.compile_expr(operand1(args), stack_index - K_WORD_SIZE);
+        //         // load data from stack to X1
+        //         self.gen_ldr_imm_instruction(
+        //             RegisterX::X29,
+        //             RegisterX::X1,
+        //             -stack_index as i16,
+        //             false,
+        //             false,
+        //             true,
+        //         );
+        //         // sub result to x0
+        //         self.gen_sub_shifted_reg_instruction(
+        //             RegisterX::X0,
+        //             RegisterX::X0,
+        //             RegisterX::X1,
+        //             0,
+        //             Shift::LSL,
+        //             true,
+        //         );
+        //         return 0;
+        // }
     }
 
     /// compile a top-level function node: compile expression and emit ret
