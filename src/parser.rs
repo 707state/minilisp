@@ -60,7 +60,7 @@ fn parse_character(input: &str) -> IResult<&str, LispVal> {
 
 // Assuming LispVal enum exists
 fn parse_symbol(input: &str) -> IResult<&str, LispVal> {
-    let first_char = alt((alphanumeric1, recognize(one_of("!$%&*/:<=>?^_~"))));
+    let first_char = alt((alphanumeric1, recognize(one_of("+-!$%&*/:<=>?^_~"))));
     let rest_char = many0(alt((alphanumeric1, recognize(one_of("!$%&*/:<=>?^_~")))));
 
     let parser = recognize(pair(first_char, rest_char));

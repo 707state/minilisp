@@ -768,10 +768,83 @@ impl ASMGenerator {
                 }
                 "+" => {
                     assert!(args.len() > 1, "+ expects arguments more than 1");
+                    self.compile_expr(&args[0], stack_index);
+                    for (i, operand) in args[1..].iter().enumerate() {
+                        let tmp_offset = stack_index - (i as i64 + 1) * K_WORD_SIZE;
+                        // Save accumulator (X0) to stack
+                        self.gen_str_imm_instruction(
+                            RegisterX::X29,
+                            RegisterX::X0,
+                            tmp_offset as i16,
+                            true,
+                            false,
+                            true,
+                        );
+                        // Compile next operand → X0
+                        self.compile_expr(operand, tmp_offset - K_WORD_SIZE);
+                        // Load previous accumulator into X1
+                        self.gen_ldr_imm_instruction(
+                            RegisterX::X29,
+                            RegisterX::X1,
+                            -tmp_offset as i16,
+                            false,
+                            false,
+                            true,
+                        );
+                        // X0 = X1 + X0
+                        self.gen_add_shifted_reg_instruction(
+                            RegisterX::X0,
+                            RegisterX::X1,
+                            RegisterX::X0,
+                            0,
+                            Shift::LSL,
+                            true,
+                        );
+                    }
                     0
                 }
                 "-" => {
-                    todo!()
+                    assert!(args.len() > 1, "- expects at least 2 arguments");
+                    // Compile first operand → X0 (accumulator)
+                    self.compile_expr(&args[0], stack_index);
+                    // For each remaining operand: acc = acc - operand
+                    for (i, operand) in args[1..].iter().enumerate() {
+                        let tmp_offset = stack_index - (i as i64 + 1) * K_WORD_SIZE;
+
+                        // Save accumulator (X0) to stack
+                        self.gen_str_imm_instruction(
+                            RegisterX::X29,
+                            RegisterX::X0,
+                            tmp_offset as i16,
+                            true,
+                            false,
+                            true,
+                        );
+
+                        // Compile next operand → X0
+                        self.compile_expr(operand, tmp_offset - K_WORD_SIZE);
+
+                        // Load previous accumulator into X1
+                        self.gen_ldr_imm_instruction(
+                            RegisterX::X29,
+                            RegisterX::X1,
+                            -tmp_offset as i16,
+                            false,
+                            false,
+                            true,
+                        );
+
+                        // X0 = X1 - X0
+                        self.gen_sub_shifted_reg_instruction(
+                            RegisterX::X0, // dst
+                            RegisterX::X1, // lhs = previous accumulator
+                            RegisterX::X0, // rhs = newly computed operand
+                            0,
+                            Shift::LSL,
+                            true,
+                        );
+                    }
+                    0
                 }
                 "let" => {
                     todo!()
@@ -781,80 +854,9 @@ impl ASMGenerator {
                 }
             },
             _ => {
-                panic!("Should be a symbol in the beginning of list.");
+                panic!("Unknown function or primitive!");
             }
         }
-        // if ast_is_symbol(callable) {
-        //     if ast_symbol_matches(
-        //         callable,
-        //         std::ffi::CStr::from_bytes_with_nul(b"+\0").unwrap(),
-        //     ) {
-        //         self.compile_expr(operand2(args), stack_index);
-        //         // STR X0, [X29,#stack_index]
-        //         self.gen_str_imm_instruction(
-        //             RegisterX::X29,
-        //             RegisterX::X0,
-        //             stack_index as i16,
-        //             true,
-        //             false,
-        //             true,
-        //         );
-        //         // compile first parameter to x0
-        //         self.compile_expr(operand1(args), stack_index - K_WORD_SIZE);
-        //         // load data from stack to X1
-        //         self.gen_ldr_imm_instruction(
-        //             RegisterX::X29,
-        //             RegisterX::X1,
-        //             -stack_index as i16,
-        //             false,
-        //             false,
-        //             true,
-        //         );
-        //         // add result to x0
-        //         self.gen_add_shifted_reg_instruction(
-        //             RegisterX::X0,
-        //             RegisterX::X0,
-        //             RegisterX::X1,
-        //             0,
-        //             Shift::LSL,
-        //             true,
-        //         );
-        //         return 0;
-        //     } else if ast_symbol_matches(
-        //         callable,
-        //         std::ffi::CStr::from_bytes_with_nul(b"-\0").unwrap(),
-        //     ) {
-        //         self.compile_expr(operand2(args), stack_index);
-        //         self.gen_str_imm_instruction(
-        //             RegisterX::X29,
-        //             RegisterX::X0,
-        //             stack_index as i16,
-        //             true,
-        //             false,
-        //             true,
-        //         );
-        //         // compile first parameter to x0
-        //         self.compile_expr(operand1(args), stack_index - K_WORD_SIZE);
-        //         // load data from stack to X1
-        //         self.gen_ldr_imm_instruction(
-        //             RegisterX::X29,
-        //             RegisterX::X1,
-        //             -stack_index as i16,
-        //             false,
-        //             false,
-        //             true,
-        //         );
-        //         // sub result to x0
-        //         self.gen_sub_shifted_reg_instruction(
-        //             RegisterX::X0,
-        //             RegisterX::X0,
-        //             RegisterX::X1,
-        //             0,
-        //             Shift::LSL,
-        //             true,
-        //         );
-        //         return 0;
-        // }
     }
 
     /// compile a top-level function node: compile expression and emit ret
@@ -943,5 +945,49 @@ impl ASMGenerator {
 impl Drop for ASMGenerator {
     fn drop(&mut self) {
         self.reclaim();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{codegen::ASMGenerator, object::object_encode_integer, parser::parse_lisp};
+
+    #[test]
+    fn test_plus_function() {
+        let src = "(+ 1 2 3)";
+        match parse_lisp(src) {
+            Ok((rest, val)) => {
+                assert_eq!(rest, "");
+                let mut generator = ASMGenerator::new();
+                generator.compile_function(&val);
+                let _ = generator.init();
+                generator.make_executable();
+                let return_val = generator.execute();
+                assert_eq!(return_val, object_encode_integer(6) as usize);
+            }
+            Err(e) => {
+                eprintln!("Error: {:?}", e);
+                assert!(false);
+            }
+        }
+    }
+    #[test]
+    fn test_sub_function() {
+        let src = "(- 6 2 1)";
+        match parse_lisp(src) {
+            Ok((rest, val)) => {
+                assert_eq!(rest, "");
+                let mut generator = ASMGenerator::new();
+                generator.compile_function(&val);
+                let _ = generator.init();
+                generator.make_executable();
+                let return_val = generator.execute();
+                assert_eq!(return_val, object_encode_integer(3) as usize);
+            }
+            Err(e) => {
+                eprintln!("Error: {:?}", e);
+                assert!(false);
+            }
+        }
     }
 }
