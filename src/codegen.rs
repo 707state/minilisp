@@ -880,7 +880,7 @@ impl ASMGenerator {
     pub fn put_label_call(&mut self, offset: u32, label: String) {
         self.label_call.insert(offset, label);
     }
-    /// 获取指令的拷贝
+    /// get copy of instructions
     pub fn get_instructions(&self) -> Vec<u32> {
         self.instructions.clone()
     }
@@ -891,19 +891,18 @@ impl ASMGenerator {
         self.label_call.clone()
     }
 
-    /// 计算指令占用字节大小
     pub fn get_code_size(&self) -> usize {
         self.instructions.len() * std::mem::size_of::<u32>()
     }
     pub fn get_instructions_size(&self) -> u32 {
         self.instructions.len() as u32
     }
-    /// 获取指令内存指针
+    /// get pointer to instructions
     pub fn get_code_ptr(&self) -> *const u8 {
         self.instructions.as_ptr() as *const u8
     }
 
-    /// mmap 分配可写内存，并拷贝指令
+    /// mmap an executable memory region
     pub fn init(&mut self) -> Result<(), &'static str> {
         unsafe {
             let size = self.get_code_size();
@@ -924,17 +923,17 @@ impl ASMGenerator {
         Ok(())
     }
 
-    /// 释放 mmap 内存
+    /// unmap the memory region
     pub fn reclaim(&mut self) -> i32 {
         unsafe { munmap(self.memory, self.get_code_size()) }
     }
 
-    /// 将内存页设置为可执行
+    /// set memory as executable
     pub fn make_executable(&mut self) -> i32 {
         unsafe { mprotect(self.memory, self.get_code_size(), PROT_READ | PROT_EXEC) }
     }
 
-    /// 执行 JIT 代码
+    /// execute the binary
     pub fn execute(&self) -> usize {
         unsafe {
             let func: extern "C" fn() -> usize = std::mem::transmute(self.memory);

@@ -1,4 +1,3 @@
-use minilisp::ast::*;
 use minilisp::codegen::*;
 use minilisp::object::*;
 use minilisp::parser::parse_lisp;

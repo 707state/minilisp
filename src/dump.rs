@@ -119,14 +119,3 @@ fn write_elf(path: &str, instructions: &[u32]) {
     let mut file = File::create(path).unwrap();
     file.write_all(&bytes).unwrap();
 }
-
-#[cfg(test)]
-mod tests {
-    use std::{error::Error, fs};
-
-    use object::{
-        LittleEndian,
-        macho::{self, N_EXT},
-        read::macho::{MachHeader, Nlist},
-    };
-}

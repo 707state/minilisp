@@ -155,7 +155,6 @@ pub fn ast_heap_free(node: ASTNode) {
 #[repr(C)]
 pub struct Symbol {
     pub length: Word,
-    // flexible array member - we allocate extra bytes after this struct
 }
 
 pub fn ast_as_symbol(node: ASTNode) -> *mut Symbol {
@@ -184,13 +183,11 @@ pub fn ast_is_symbol(node: ASTNode) -> bool {
 
 pub fn ast_symbol_cstr(node: ASTNode) -> *const c_char {
     unsafe {
-        let s = ast_as_symbol(node);
         (object_address(node) as *const u8).add(core::mem::size_of::<Symbol>()) as *const c_char
     }
 }
 pub fn ast_symbol_as_cstr(node: ASTNode) -> &'static CStr {
     unsafe {
-        let s = ast_as_symbol(node);
         let ptr = (object_address(node) as *const u8).add(core::mem::size_of::<Symbol>())
             as *const c_char;
         CStr::from_ptr(ptr)
