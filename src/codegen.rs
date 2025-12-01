@@ -1,4 +1,5 @@
 use crate::common::*;
+use crate::env::Environment;
 use crate::object::*;
 use crate::parser::*;
 use capstone::{Capstone, arch, arch::BuildsCapstone};
@@ -23,6 +24,8 @@ pub struct ASMGenerator {
     label_offset: HashMap<String, u32>,
     // bl call to label
     label_call: HashMap<u32, String>,
+    // environment
+    env: Environment,
 }
 impl CodeSink for ASMGenerator {
     fn emit(&mut self) {
@@ -65,6 +68,7 @@ impl ASMGenerator {
             label_offset: HashMap::new(),
             label_call: HashMap::new(),
             memory: ptr::null_mut(),
+            env: Environment::new(),
         }
     }
 
@@ -847,6 +851,9 @@ impl ASMGenerator {
                     0
                 }
                 "let" => {
+                    // let expression should only have 2 argument, first is binding, second is evaluation.
+                    assert_eq!(args.len(), 2);
+                    self.compile_let(&args[0], &args[1]);
                     todo!()
                 }
                 _ => {
@@ -874,6 +881,12 @@ impl ASMGenerator {
         self.gen_ret_instruction(RegisterX::X30);
         0
     }
+
+    // compile a let expression
+    fn compile_let(&mut self, body: &LispVal, expr: &LispVal) -> i32 {
+        todo!()
+    }
+
     pub fn put_label_offset(&mut self, label: String, offset: u32) {
         self.label_offset.insert(label, offset);
     }

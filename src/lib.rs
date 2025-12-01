@@ -2,6 +2,7 @@ pub mod ast;
 pub mod codegen;
 pub mod common;
 pub mod dump;
+pub mod env;
 pub mod label;
 pub mod object;
 pub mod parser;
