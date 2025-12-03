@@ -431,22 +431,37 @@ impl ASMGenerator {
         rt: RegisterX,
         imm: i16,
         is_pre_index: bool,
+        is_post_index: bool,
         is_unsigned_offset: bool,
         is_64: bool,
     ) {
-        let mut inst: u32 = STR_IMM;
-        inst |= (is_64 as u32) << 30;
-        if is_unsigned_offset {
-            inst |= 0x1 << 24;
-            inst |= ((imm & 0x0fff) as u32) << 10;
-        } else {
-            inst |= 0x1 << 10;
-            inst |= (is_pre_index as u32) << 11;
+        if is_pre_index {
+            let mut inst = STR_IMM_PRE_IDX;
+            inst |= (is_64 as u32) << 30;
             inst |= ((imm & 0x01ff) as u32) << 12;
+            inst |= ((rn as u8 & 0x1f) as u32) << 5;
+            inst |= (rt as u8 & 0x1f) as u32;
+            self.write32(inst);
+            return;
         }
-        inst |= ((rn as u8 & 0x1f) as u32) << 5;
-        inst |= (rt as u8 & 0x1f) as u32;
-        self.write32(inst);
+        if is_post_index {
+            let mut inst = STR_IMM_POST_IDX;
+            inst |= (is_64 as u32) << 30;
+            inst |= ((imm & 0x01ff) as u32) << 12;
+            inst |= ((rn as u8 & 0x1f) as u32) << 5;
+            inst |= (rt as u8 & 0x1f) as u32;
+            self.write32(inst);
+            return;
+        }
+        if is_unsigned_offset {
+            let mut inst = STR_IMM_UNSIGNED_OFFSET;
+            inst |= (is_64 as u32) << 30;
+            inst |= ((imm & 0x0fff) as u32) << 10;
+            inst |= ((rn as u8 & 0x1f) as u32) << 5;
+            inst |= (rt as u8 & 0x1f) as u32;
+            self.write32(inst);
+            return;
+        }
     }
 
     /// LDR (imm)
@@ -471,6 +486,41 @@ impl ASMGenerator {
         }
         inst |= ((rn as u8 & 0x1f) as u32) << 5;
         inst |= (rt as u8 & 0x1f) as u32;
+        self.write32(inst);
+    }
+    /// LDR (register)
+    pub fn gen_ldr_register_instruction(
+        &mut self,
+        rn: RegisterX,
+        rt: RegisterX,
+        rm: RegisterX,
+        s: bool,
+        option: ExtendedShift,
+        is_64: bool,
+    ) {
+        let mut inst = LDR_REG;
+        inst |= (is_64 as u32) << 30;
+        inst |= (option as u32) << 13;
+        inst |= (rm as u32 & 0x1f) << 16;
+        inst |= (s as u32) << 12;
+        inst |= (rn as u32 & 0x1f) << 5;
+        inst |= rt as u32 & 0x1f;
+        self.write32(inst);
+    }
+    fn gen_stur_instruction(&mut self, rn: RegisterX, rt: RegisterX, imm9: i16, is_64: bool) {
+        let mut inst = STUR;
+        inst |= (is_64 as u32) << 30;
+        inst |= (imm9 as u32 & 0x1ff) << 12;
+        inst |= (rn as u32 & 0x1f) << 5;
+        inst |= rt as u32 & 0x1f;
+        self.write32(inst);
+    }
+    fn gen_ldur_instruction(&mut self, rn: RegisterX, rt: RegisterX, imm9: i16, is_64: bool) {
+        let mut inst = LDUR;
+        inst |= (is_64 as u32) << 30;
+        inst |= (imm9 as u32 & 0x1ff) << 12;
+        inst |= (rn as u32 & 0x1f) << 5;
+        inst |= rt as u32 & 0x1f;
         self.write32(inst);
     }
     pub fn gen_bcond_instruction(&mut self, cond: Cond, imm19: u32) {
@@ -520,7 +570,14 @@ impl ASMGenerator {
                 return 0;
             }
             LispVal::Symbol(sym) => {
-                todo!();
+                // get the address of symbol and load value into X0
+                if let Some(pos) = self.env.lookup(sym) {
+                    // use ldr X0,[X29,#value]
+                    self.gen_ldur_instruction(RegisterX::X29, RegisterX::X0, pos as i16, true);
+                    0
+                } else {
+                    -1
+                }
             }
             LispVal::List(val) => {
                 if val.is_empty() {
@@ -702,21 +759,17 @@ impl ASMGenerator {
                 "=" => {
                     assert_eq!(args.len(), 2);
                     self.compile_expr(&args[1], stack_index);
-                    self.gen_str_imm_instruction(
+                    self.gen_stur_instruction(
                         RegisterX::X29,
                         RegisterX::X0,
                         stack_index as i16,
                         true,
-                        false,
-                        true,
                     );
                     self.compile_expr(&args[0], stack_index - K_WORD_SIZE);
-                    self.gen_ldr_imm_instruction(
+                    self.gen_ldur_instruction(
                         RegisterX::X29,
                         RegisterX::X1,
-                        -stack_index as i16,
-                        false,
-                        false,
+                        stack_index as i16,
                         true,
                     );
                     self.gen_cmp_shifted_reg_instruction(
@@ -750,21 +803,17 @@ impl ASMGenerator {
                 "<" => {
                     assert_eq!(args.len(), 2);
                     self.compile_expr(&args[1], stack_index);
-                    self.gen_str_imm_instruction(
+                    self.gen_stur_instruction(
                         RegisterX::X29,
                         RegisterX::X0,
                         stack_index as i16,
                         true,
-                        false,
-                        true,
                     );
                     self.compile_expr(&args[0], stack_index - K_WORD_SIZE);
-                    self.gen_ldr_imm_instruction(
+                    self.gen_ldur_instruction(
                         RegisterX::X29,
                         RegisterX::X1,
-                        -stack_index as i16,
-                        false,
-                        false,
+                        stack_index as i16,
                         true,
                     );
                     self.compile_compare_reg(RegisterX::X0, RegisterX::X1);
@@ -776,23 +825,19 @@ impl ASMGenerator {
                     for (i, operand) in args[1..].iter().enumerate() {
                         let tmp_offset = stack_index - (i as i64 + 1) * K_WORD_SIZE;
                         // Save accumulator (X0) to stack
-                        self.gen_str_imm_instruction(
+                        self.gen_stur_instruction(
                             RegisterX::X29,
                             RegisterX::X0,
                             tmp_offset as i16,
-                            true,
-                            false,
                             true,
                         );
                         // Compile next operand → X0
                         self.compile_expr(operand, tmp_offset - K_WORD_SIZE);
                         // Load previous accumulator into X1
-                        self.gen_ldr_imm_instruction(
+                        self.gen_ldur_instruction(
                             RegisterX::X29,
                             RegisterX::X1,
-                            -tmp_offset as i16,
-                            false,
-                            false,
+                            tmp_offset as i16,
                             true,
                         );
                         // X0 = X1 + X0
@@ -816,25 +861,20 @@ impl ASMGenerator {
                         let tmp_offset = stack_index - (i as i64 + 1) * K_WORD_SIZE;
 
                         // Save accumulator (X0) to stack
-                        self.gen_str_imm_instruction(
+                        self.gen_stur_instruction(
                             RegisterX::X29,
                             RegisterX::X0,
                             tmp_offset as i16,
                             true,
-                            false,
-                            true,
                         );
-
                         // Compile next operand → X0
                         self.compile_expr(operand, tmp_offset - K_WORD_SIZE);
 
                         // Load previous accumulator into X1
-                        self.gen_ldr_imm_instruction(
+                        self.gen_ldur_instruction(
                             RegisterX::X29,
                             RegisterX::X1,
-                            -tmp_offset as i16,
-                            false,
-                            false,
+                            tmp_offset as i16,
                             true,
                         );
 
@@ -853,8 +893,7 @@ impl ASMGenerator {
                 "let" => {
                     // let expression should only have 2 argument, first is binding, second is evaluation.
                     assert_eq!(args.len(), 2);
-                    self.compile_let(&args[0], &args[1]);
-                    todo!()
+                    self.compile_let(&args[0], &args[1], stack_index)
                 }
                 _ => {
                     panic!("{} is not supported!", sym);
@@ -883,8 +922,67 @@ impl ASMGenerator {
     }
 
     // compile a let expression
-    fn compile_let(&mut self, body: &LispVal, expr: &LispVal) -> i32 {
-        todo!()
+    fn compile_let(&mut self, bindings: &LispVal, body: &LispVal, stack_index: Word) -> i32 {
+        let binding_env = self.env.clone();
+        let mut body_env = self.env.clone();
+        let result =
+            self.compile_let_internal(bindings, body, stack_index, &binding_env, &mut body_env);
+        self.env = binding_env;
+        result
+    }
+    fn compile_let_internal(
+        &mut self,
+        bindings: &LispVal,
+        body: &LispVal,
+        stack_index: Word,
+        binding_env: &Environment,
+        body_env: &mut Environment,
+    ) -> i32 {
+        if let LispVal::List(bindings_tuple) = bindings {
+            if bindings_tuple.len() == 0 {
+                // bindings is nil
+                let saved_env = self.env.clone();
+                self.env = body_env.clone();
+                let r = self.compile_expr(body, stack_index);
+                self.env = saved_env;
+                r
+            } else {
+                //binding is not nil
+                let binding = bindings_tuple.first().unwrap();
+                let rest = LispVal::List(bindings_tuple[1..].into());
+                if let LispVal::List(binding_list) = binding {
+                    assert_eq!(binding_list.len(), 2);
+                    let sym = match &binding_list[0] {
+                        LispVal::Symbol(sym) => sym.clone(),
+                        _ => panic!("Expecting a symbol at the beginning of binding!"),
+                    };
+                    let binding_expr = &binding_list[1];
+                    let saved_env = self.env.clone();
+                    self.env = binding_env.clone();
+                    self.compile_expr(binding_expr, stack_index);
+                    self.env = saved_env;
+                    // store result to stack
+                    self.gen_stur_instruction(
+                        RegisterX::X29,
+                        RegisterX::X0,
+                        stack_index as i16,
+                        true,
+                    );
+                    body_env.bind(sym, stack_index);
+                    self.compile_let_internal(
+                        &rest,
+                        &body,
+                        stack_index - K_WORD_SIZE,
+                        binding_env,
+                        body_env,
+                    )
+                } else {
+                    panic!("Expecting a list inside body!");
+                }
+            }
+        } else {
+            panic!("Bindings should be a list!");
+        }
     }
 
     pub fn put_label_offset(&mut self, label: String, offset: u32) {
@@ -1002,4 +1100,40 @@ mod tests {
             }
         }
     }
+    macro_rules! let_test {
+        ($name:ident, $src:expr,$expected:expr) => {
+            #[test]
+            fn $name() {
+                match parse_lisp($src) {
+                    Ok((rest, val)) => {
+                        assert_eq!(rest, "");
+                        let mut generator = ASMGenerator::new();
+                        generator.compile_function(&val);
+                        let _ = generator.init();
+                        generator.make_executable();
+                        assert_eq!(generator.execute(), $expected);
+                    }
+                    Err(e) => {
+                        eprintln!("Error: {:?}", e);
+                        assert!(false);
+                    }
+                }
+            }
+        };
+    }
+    let_test!(
+        test_let_simple_function,
+        "(let ((a 1)) a)",
+        object_encode_integer(1) as usize
+    );
+    let_test!(
+        test_let_complex_function,
+        "(let ((a 1) (b (+ 1 2 3))) (+ a b))",
+        object_encode_integer(7) as usize
+    );
+    let_test!(
+        test_let_recurse_function,
+        "(let ((a 1)) (let ((a 2)) a))",
+        object_encode_integer(2) as usize
+    );
 }

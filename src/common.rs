@@ -221,6 +221,14 @@ pub enum Shift {
     ASR = 2,
     ROR = 3,
 }
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExtendedShift {
+    UXTW = 2,
+    LSL = 3,
+    SXTW = 6,
+    SXTX = 7,
+}
 pub const RESERVED: Shift = Shift::ROR;
 
 // Base instruction encoding
@@ -247,8 +255,13 @@ define_opcodes! {
     CSET=0x1a9f07e0;
     STP= 0x2800_0000;
     LDP=0x2840_0000;
-    STR_IMM=0xb800_0000;
+    STR_IMM_PRE_IDX=0xb800_0400;
+    STR_IMM_POST_IDX=0xb800_0c00;
+    STR_IMM_UNSIGNED_OFFSET=0xb900_0000;
     LDR_IMM=0xb840_0000;
+    LDR_REG=0xb8600800;
+    STUR=0xb800_0000;
+    LDUR=0xb840_0000;
     B_COND=0x54000000;
     BL=0x94000000;
     SVC=0xd4000001;
