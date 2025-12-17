@@ -94,7 +94,7 @@ impl ASMGenerator {
     }
 
     // movz
-    pub fn gen_movz_instruction(&mut self, rd: RegisterX, imm: u16, hw: u8, is_64: bool) {
+    fn gen_movz_instruction(&mut self, rd: RegisterX, imm: u16, hw: u8, is_64: bool) {
         let mut inst: u32 = MOVZ;
         inst |= (is_64 as u32) << 31;
         inst |= ((hw & 0x3) as u32) << 21;
@@ -107,7 +107,7 @@ impl ASMGenerator {
         assert!(matches!(shift, 0 | 16 | 32 | 64));
         self.gen_movz_instruction(rd, imm, shift / 16, is_64);
     }
-    pub fn gen_mov_reg_instruction(&mut self, rd: RegisterX, rm: RegisterX, is_64: bool) {
+    fn gen_mov_reg_instruction(&mut self, rd: RegisterX, rm: RegisterX, is_64: bool) {
         self.gen_orr_shifted_reg_instruction(
             rd,
             RegisterX::MovRegister,
@@ -117,7 +117,7 @@ impl ASMGenerator {
             is_64,
         );
     }
-    pub fn gen_orr_shifted_reg_instruction(
+    fn gen_orr_shifted_reg_instruction(
         &mut self,
         rd: RegisterX,
         rn: RegisterX,
@@ -141,10 +141,10 @@ impl ASMGenerator {
         inst |= ((reg as u8 & 0x1f) as u32) << 5;
         self.write32(inst);
     }
-    pub fn gen_mov_to_from_sp_instruction(&mut self, rd: RegisterX, rn: RegisterX, is_64: bool) {
+    fn gen_mov_to_from_sp_instruction(&mut self, rd: RegisterX, rn: RegisterX, is_64: bool) {
         self.gen_add_imm_instruction(rn, rd, 0, false, is_64);
     }
-    pub fn gen_add_shifted_reg_instruction(
+    fn gen_add_shifted_reg_instruction(
         &mut self,
         rd: RegisterX,
         rn: RegisterX,
@@ -162,7 +162,7 @@ impl ASMGenerator {
         inst |= rd as u32 & 0x1f;
         self.write32(inst);
     }
-    pub fn gen_add_imm_instruction(
+    fn gen_add_imm_instruction(
         &mut self,
         rn: RegisterX,
         rd: RegisterX,
@@ -179,7 +179,7 @@ impl ASMGenerator {
         self.write32(inst);
     }
 
-    pub fn gen_sub_shifted_reg_instruction(
+    fn gen_sub_shifted_reg_instruction(
         &mut self,
         rd: RegisterX,
         rn: RegisterX,
@@ -198,7 +198,7 @@ impl ASMGenerator {
         self.write32(inst);
     }
 
-    pub fn gen_sub_imm_instruction(
+    fn gen_sub_imm_instruction(
         &mut self,
         rn: RegisterX,
         rd: RegisterX,
@@ -215,7 +215,7 @@ impl ASMGenerator {
         self.write32(inst);
     }
 
-    pub fn gen_ubfm_instruction(
+    fn gen_ubfm_instruction(
         &mut self,
         rn: RegisterX,
         rd: RegisterX,
@@ -234,25 +234,13 @@ impl ASMGenerator {
         self.write32(inst);
     }
 
-    pub fn gen_lsl_imm_instruction(
-        &mut self,
-        rn: RegisterX,
-        rd: RegisterX,
-        shift: i32,
-        is_64: bool,
-    ) {
+    fn gen_lsl_imm_instruction(&mut self, rn: RegisterX, rd: RegisterX, shift: i32, is_64: bool) {
         let immr = (-shift & if is_64 { 0x3f } else { 0x1f }) as u8;
         let imms = ((if is_64 { 63 } else { 31 }) - shift) as u8;
         self.gen_ubfm_instruction(rn, rd, immr, imms, is_64, is_64);
     }
 
-    pub fn gen_lsr_imm_instruction(
-        &mut self,
-        rn: RegisterX,
-        rd: RegisterX,
-        shift: i32,
-        is_64: bool,
-    ) {
+    fn gen_lsr_imm_instruction(&mut self, rn: RegisterX, rd: RegisterX, shift: i32, is_64: bool) {
         self.gen_ubfm_instruction(
             rn,
             rd,
@@ -263,7 +251,7 @@ impl ASMGenerator {
         );
     }
 
-    pub fn gen_orr_imm_instruction(
+    fn gen_orr_imm_instruction(
         &mut self,
         rn: RegisterX,
         rd: RegisterX,
@@ -281,7 +269,7 @@ impl ASMGenerator {
         inst |= (rd as u8 & 0x1f) as u32;
         self.write32(inst);
     }
-    pub fn gen_and_imm_instruction(
+    fn gen_and_imm_instruction(
         &mut self,
         rn: RegisterX,
         rd: RegisterX,
@@ -301,10 +289,10 @@ impl ASMGenerator {
         self.write32(inst);
     }
 
-    pub fn gen_cmp_imm_instruction(&mut self, rn: RegisterX, imm12: u16, shift: bool, is_64: bool) {
+    fn gen_cmp_imm_instruction(&mut self, rn: RegisterX, imm12: u16, shift: bool, is_64: bool) {
         self.gen_subs_imm_instruction(rn, RegisterX::XZR, imm12, shift, is_64);
     }
-    pub fn gen_cmp_shifted_reg_instruction(
+    fn gen_cmp_shifted_reg_instruction(
         &mut self,
         rn: RegisterX,
         rm: RegisterX,
@@ -314,7 +302,7 @@ impl ASMGenerator {
     ) {
         self.gen_subs_shifted_reg_instruction(RegisterX::MovRegister, rn, rm, imm6, shift, is_64);
     }
-    pub fn gen_subs_imm_instruction(
+    fn gen_subs_imm_instruction(
         &mut self,
         rn: RegisterX,
         rd: RegisterX,
@@ -330,7 +318,7 @@ impl ASMGenerator {
         inst |= (rd as u8 & 0x1f) as u32;
         self.write32(inst);
     }
-    pub fn gen_subs_shifted_reg_instruction(
+    fn gen_subs_shifted_reg_instruction(
         &mut self,
         rd: RegisterX,
         rn: RegisterX,
@@ -349,7 +337,7 @@ impl ASMGenerator {
         self.write32(inst);
     }
 
-    pub fn gen_csel_instruction(
+    fn gen_csel_instruction(
         &mut self,
         rm: RegisterX,
         rn: RegisterX,
@@ -366,7 +354,7 @@ impl ASMGenerator {
         self.write32(inst);
     }
 
-    pub fn gen_cset_instruction(&mut self, rd: RegisterX, cond: IVCond, is_64: bool) {
+    fn gen_cset_instruction(&mut self, rd: RegisterX, cond: IVCond, is_64: bool) {
         let mut inst: u32 = CSET;
         inst |= (is_64 as u32) << 31;
         inst |= ((cond as u8 & 0xf) as u32) << 12;
@@ -374,7 +362,7 @@ impl ASMGenerator {
         self.write32(inst);
     }
     /// store pair (STP)
-    pub fn gen_stp_instruction(
+    fn gen_stp_instruction(
         &mut self,
         rn: RegisterX,
         rt: RegisterX,
@@ -399,7 +387,7 @@ impl ASMGenerator {
     }
 
     /// load pair (LDP)
-    pub fn gen_ldp_instruction(
+    fn gen_ldp_instruction(
         &mut self,
         rn: RegisterX,
         rt: RegisterX,
@@ -425,7 +413,7 @@ impl ASMGenerator {
     }
 
     /// STR (imm)
-    pub fn gen_str_imm_instruction(
+    fn gen_str_imm_instruction(
         &mut self,
         rn: RegisterX,
         rt: RegisterX,
@@ -465,7 +453,7 @@ impl ASMGenerator {
     }
 
     /// LDR (imm)
-    pub fn gen_ldr_imm_instruction(
+    fn gen_ldr_imm_instruction(
         &mut self,
         rn: RegisterX,
         rt: RegisterX,
@@ -489,7 +477,7 @@ impl ASMGenerator {
         self.write32(inst);
     }
     /// LDR (register)
-    pub fn gen_ldr_register_instruction(
+    fn gen_ldr_register_instruction(
         &mut self,
         rn: RegisterX,
         rt: RegisterX,
@@ -523,7 +511,7 @@ impl ASMGenerator {
         inst |= rt as u32 & 0x1f;
         self.write32(inst);
     }
-    pub fn gen_bcond_instruction(&mut self, cond: Cond, imm19: u32) {
+    fn gen_bcond_instruction(&mut self, cond: Cond, imm19: u32) {
         let mut inst: u32 = B_COND;
         inst |= (cond as u8 & 0xf) as u32;
         inst |= ((imm19 & 0x7ffff) as u32) << 5;
@@ -895,6 +883,12 @@ impl ASMGenerator {
                     assert_eq!(args.len(), 2);
                     self.compile_let(&args[0], &args[1], stack_index)
                 }
+                "if" => {
+                    // (if cond alternate end)
+                    assert_eq!(args.len(), 3);
+
+                    todo!()
+                }
                 _ => {
                     panic!("{} is not supported!", sym);
                 }
@@ -1060,47 +1054,13 @@ impl Drop for ASMGenerator {
 
 #[cfg(test)]
 mod tests {
-    use crate::{codegen::ASMGenerator, object::object_encode_integer, parser::parse_lisp};
+    use crate::{
+        codegen::ASMGenerator,
+        object::{object_encode_bool, object_encode_integer},
+        parser::parse_lisp,
+    };
 
-    #[test]
-    fn test_plus_function() {
-        let src = "(+ 1 2 3)";
-        match parse_lisp(src) {
-            Ok((rest, val)) => {
-                assert_eq!(rest, "");
-                let mut generator = ASMGenerator::new();
-                generator.compile_function(&val);
-                let _ = generator.init();
-                generator.make_executable();
-                let return_val = generator.execute();
-                assert_eq!(return_val, object_encode_integer(6) as usize);
-            }
-            Err(e) => {
-                eprintln!("Error: {:?}", e);
-                assert!(false);
-            }
-        }
-    }
-    #[test]
-    fn test_sub_function() {
-        let src = "(- 6 2 1)";
-        match parse_lisp(src) {
-            Ok((rest, val)) => {
-                assert_eq!(rest, "");
-                let mut generator = ASMGenerator::new();
-                generator.compile_function(&val);
-                let _ = generator.init();
-                generator.make_executable();
-                let return_val = generator.execute();
-                assert_eq!(return_val, object_encode_integer(3) as usize);
-            }
-            Err(e) => {
-                eprintln!("Error: {:?}", e);
-                assert!(false);
-            }
-        }
-    }
-    macro_rules! let_test {
+    macro_rules! lisp_test {
         ($name:ident, $src:expr,$expected:expr) => {
             #[test]
             fn $name() {
@@ -1121,19 +1081,44 @@ mod tests {
             }
         };
     }
-    let_test!(
+    lisp_test!(
         test_let_simple_function,
         "(let ((a 1)) a)",
         object_encode_integer(1) as usize
     );
-    let_test!(
+    lisp_test!(
         test_let_complex_function,
         "(let ((a 1) (b (+ 1 2 3))) (+ a b))",
         object_encode_integer(7) as usize
     );
-    let_test!(
+    lisp_test!(
         test_let_recurse_function,
         "(let ((a 1)) (let ((a 2)) a))",
         object_encode_integer(2) as usize
+    );
+    lisp_test!(
+        test_let_multiple_arguments,
+        "(let ((a 1) (b 2) (c 3)) (+ a b c))",
+        object_encode_integer(6) as usize
+    );
+    lisp_test!(
+        test_add_function,
+        "(+ 1 2 3 4)",
+        object_encode_integer(10) as usize
+    );
+    lisp_test!(
+        test_sub_function,
+        "(- 6 2 1)",
+        object_encode_integer(3) as usize
+    );
+    lisp_test!(
+        test_boolean_parsing_true,
+        "#t",
+        object_encode_bool(true) as usize
+    );
+    lisp_test!(
+        test_boolean_parsing_false,
+        "#f",
+        object_encode_bool(false) as usize
     );
 }
