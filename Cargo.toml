@@ -4,10 +4,14 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-capstone = "0.13.0"
+capstone = { version = "0.13.0", optional = true }
 libc = "0.2.177"
 nom = "8"
 object = { version = "0.37.3", features = ["write", "write_core", "write_std"] }
+
+[features]
+default = ["disassemble"]
+disassemble = ["capstone"]
 
 [[bin]]
 name = "repl"

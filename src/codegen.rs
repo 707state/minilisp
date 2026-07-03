@@ -2,6 +2,7 @@ use crate::common::*;
 use crate::env::Environment;
 use crate::object::*;
 use crate::parser::*;
+#[cfg(feature = "disassemble")]
 use capstone::{Capstone, arch, arch::BuildsCapstone};
 use libc::{
     MAP_ANON, MAP_FAILED, MAP_PRIVATE, PROT_EXEC, PROT_READ, PROT_WRITE, mmap, mprotect, munmap,
@@ -33,30 +34,33 @@ impl CodeSink for ASMGenerator {
         self.new_instruction();
     }
     fn print_asm(&self) {
-        let mut code: Vec<u8> = Vec::new();
-        for word in self.instructions.iter().copied() {
-            code.extend(&word.to_le_bytes());
+        #[cfg(not(feature = "disassemble"))]
+        {
+            println!("Disassembly not available (enable 'disassemble' feature)");
         }
-
-        let cs = Capstone::new()
-            .arm64()
-            .mode(arch::arm64::ArchMode::Arm)
-            .detail(false)
-            .build()
-            .unwrap();
-
-        let instructions = cs.disasm_all(&code, 0x0).unwrap();
-
-        println!("Disassembly:");
-        println!("============");
-
-        for i in instructions.iter() {
-            println!(
-                "0x{:08x}:\t{}\t{}",
-                i.address(),
-                i.mnemonic().unwrap_or(""),
-                i.op_str().unwrap_or("")
-            );
+        #[cfg(feature = "disassemble")]
+        {
+            let mut code: Vec<u8> = Vec::new();
+            for word in self.instructions.iter().copied() {
+                code.extend(&word.to_le_bytes());
+            }
+            let cs = Capstone::new()
+                .arm64()
+                .mode(arch::arm64::ArchMode::Arm)
+                .detail(false)
+                .build()
+                .unwrap();
+            let instructions = cs.disasm_all(&code, 0x0).unwrap();
+            println!("Disassembly:");
+            println!("============");
+            for i in instructions.iter() {
+                println!(
+                    "0x{:08x}:\t{}\t{}",
+                    i.address(),
+                    i.mnemonic().unwrap_or(""),
+                    i.op_str().unwrap_or("")
+                );
+            }
         }
     }
 }
