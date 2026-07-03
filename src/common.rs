@@ -263,6 +263,7 @@ define_opcodes! {
     STUR=0xb800_0000;
     LDUR=0xb840_0000;
     B_COND=0x54000000;
+B=0x14000000;
     BL=0x94000000;
     SVC=0xd4000001;
 }

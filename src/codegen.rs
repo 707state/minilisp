@@ -522,6 +522,11 @@ impl ASMGenerator {
         inst |= imm26 & 0x3FFFFFF;
         self.write32(inst);
     }
+    pub fn gen_b_instruction(&mut self, imm26: u32) {
+        let mut inst: u32 = B;
+        inst |= imm26 & 0x3FFFFFF;
+        self.write32(inst);
+    }
     pub fn gen_svc_instruction(&mut self, imm16: u16) {
         let mut inst = SVC;
         inst |= (imm16 as u32) << 5;
@@ -884,10 +889,85 @@ impl ASMGenerator {
                     self.compile_let(&args[0], &args[1], stack_index)
                 }
                 "if" => {
-                    // (if cond alternate end)
+                    // (if cond then-branch else-branch)
                     assert_eq!(args.len(), 3);
+                    let cond = &args[0];
+                    let then_branch = &args[1];
+                    let else_branch = &args[2];
 
-                    todo!()
+                    // Strategy: evaluate condition, both branches unconditionally,
+                    // then use CSEL to pick the result.
+                    // This avoids branching entirely and reuses existing CSEL.
+
+                    // 1. Compile condition → X0 (tagged object)
+                    self.compile_expr(cond, stack_index);
+
+                    // 2. Save condition result to stack
+                    self.gen_stur_instruction(
+                        RegisterX::X29,
+                        RegisterX::X0,
+                        stack_index as i16,
+                        true,
+                    );
+
+                    // 3. Compile then-branch → X0, save to X1 via stack
+                    self.compile_expr(then_branch, stack_index - K_WORD_SIZE);
+                    self.gen_stur_instruction(
+                        RegisterX::X29,
+                        RegisterX::X0,
+                        (stack_index - K_WORD_SIZE) as i16,
+                        true,
+                    );
+
+                    // 4. Compile else-branch → X0, save to X2 via stack
+                    self.compile_expr(else_branch, stack_index - 2 * K_WORD_SIZE);
+                    self.gen_stur_instruction(
+                        RegisterX::X29,
+                        RegisterX::X0,
+                        (stack_index - 2 * K_WORD_SIZE) as i16,
+                        true,
+                    );
+
+                    // 5. Reload condition, then-branch, else-branch into X0, X1, X2
+                    self.gen_ldur_instruction(
+                        RegisterX::X29,
+                        RegisterX::X0,
+                        stack_index as i16,
+                        true,
+                    );
+                    self.gen_ldur_instruction(
+                        RegisterX::X29,
+                        RegisterX::X1,
+                        (stack_index - K_WORD_SIZE) as i16,
+                        true,
+                    );
+                    self.gen_ldur_instruction(
+                        RegisterX::X29,
+                        RegisterX::X2,
+                        (stack_index - 2 * K_WORD_SIZE) as i16,
+                        true,
+                    );
+
+                    // 6. Compare condition with false → sets flags (CMP X0, #31)
+                    self.gen_cmp_imm_instruction(
+                        RegisterX::X0,
+                        object_false() as u16,
+                        false,
+                        true,
+                    );
+
+                    // 7. CSEL: if NE (cond != false), X0 = X1 (then), else X0 = X2 (else)
+                    // CSEL Xd, Xn, Xm, cond → Xd = cond ? Xn : Xm
+                    // gen_csel_instruction(rm=else, rn=then, rd=dest, cond, is_64)
+                    self.gen_csel_instruction(
+                        RegisterX::X2,
+                        RegisterX::X1,
+                        RegisterX::X0,
+                        Cond::NE,
+                        true,
+                    );
+
+                    0
                 }
                 _ => {
                     panic!("{} is not supported!", sym);
@@ -1055,7 +1135,7 @@ impl Drop for ASMGenerator {
 #[cfg(test)]
 mod tests {
     use crate::{
-        codegen::ASMGenerator,
+        codegen::{ASMGenerator, CodeSink},
         object::{object_encode_bool, object_encode_integer},
         parser::parse_lisp,
     };
@@ -1120,5 +1200,105 @@ mod tests {
         test_boolean_parsing_false,
         "#f",
         object_encode_bool(false) as usize
+    );
+    lisp_test!(
+        test_if_true_then_branch,
+        "(if #t 1 2)",
+        object_encode_integer(1) as usize
+    );
+    lisp_test!(
+        test_if_false_else_branch,
+        "(if #f 1 2)",
+        object_encode_integer(2) as usize
+    );
+    lisp_test!(
+        test_if_zero_is_truthy,
+        "(if 0 1 2)",
+        object_encode_integer(1) as usize
+    );
+    lisp_test!(
+        test_if_eq_true,
+        "(if (= 1 1) 10 20)",
+        object_encode_integer(10) as usize
+    );
+    lisp_test!(
+        test_if_eq_false,
+        "(if (= 1 2) 10 20)",
+        object_encode_integer(20) as usize
+    );
+    lisp_test!(
+        test_if_lt_true,
+        "(if (< 2 3) 1 2)",
+        object_encode_integer(1) as usize
+    );
+    lisp_test!(
+        test_if_lt_false,
+        "(if (< 3 2) 1 2)",
+        object_encode_integer(2) as usize
+    );
+    lisp_test!(
+        test_if_zero_predicate_true,
+        "(if (zero? 0) 1 2)",
+        object_encode_integer(1) as usize
+    );
+    lisp_test!(
+        test_if_zero_predicate_false,
+        "(if (zero? 1) 1 2)",
+        object_encode_integer(2) as usize
+    );
+    lisp_test!(
+        test_if_not_false,
+        "(if (not #f) 1 2)",
+        object_encode_integer(1) as usize
+    );
+    lisp_test!(
+        test_if_not_true,
+        "(if (not #t) 1 2)",
+        object_encode_integer(2) as usize
+    );
+    lisp_test!(
+        test_if_nested_inner_true,
+        "(if (if #t #t #f) 1 2)",
+        object_encode_integer(1) as usize
+    );
+    lisp_test!(
+        test_if_true_with_exp,
+        "(if #t (+ 1 2) (+ 2 3))",
+        object_encode_integer(3) as usize
+    );
+    lisp_test!(
+        test_if_false_with_exp,
+        "(if #f (+ 1 2) (+ 2 3))",
+        object_encode_integer(5) as usize
+    );
+    lisp_test!(
+        test_if_true_with_mixed_exp,
+        "(if (< 1 2) (+ 1 2 3) (- 10 2))",
+        object_encode_integer(6) as usize
+    );
+    lisp_test!(
+        test_if_false_with_mixed_exp,
+        "(if (< 10 2) (+ 1 2 3) (- 10 2))",
+        object_encode_integer(8) as usize
+    );
+    lisp_test!(
+        test_if_eq_with_exp,
+        "(if (= (+ 1 2) 3) 100 200)",
+        object_encode_integer(100) as usize
+    );
+    lisp_test!(
+        test_if_ne_with_exp,
+        "(if (= (+ 1 2) 4) 100 200)",
+        object_encode_integer(200) as usize
+    );
+    lisp_test!(
+        test_if_nested_inner_false,
+        "(if (if #f #t #f) 1 2)",
+        object_encode_integer(2) as usize
+    );
+    lisp_test!(
+        test_if_with_let,
+        "(if (let ((a 1)) a) 2 3)",
+        object_encode_integer(2) as usize
     );
 }
